@@ -34,17 +34,16 @@ Without logging in, MiniSpot still works as a basic remote (play / pause, next, 
 
 ### 1. Install MiniSpot
 
-From the [Releases](../../releases) page, download these files and put them in the same folder:
+From the [Releases](../../releases) page, download these files and put login.py and login.bat in the same folder:
 
 - `MiniSpot-x.y.z.apk`: the app
 - `login-pc.py`: the login script (step 3)
 - `login-pc.bat`: shortcut to run the script on Windows
 
-Plug the phone in, open a terminal in that folder and run:
+Move `MiniSpot-x.y.z.apk` to the Minimal ADB and Fastboot folder and run the cmd-here.exe, plug the phone in and run:
 
 ```
 adb install MiniSpot-1.1.0.apk
-Download `MiniSpot-x.y.z.apk` from the [Releases](../../releases) page, move the file to the Minimal ADB and Fastboot folder and run the cmd-here.exe, plug the phone in and run:
 
 ```
 adb install MiniSpot-x.y.z.apk
