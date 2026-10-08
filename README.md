@@ -56,7 +56,7 @@ adb install MiniSpot-x.y.z.apk
    minispot://callback
    ```
 4. **Which API/SDKs are you planning to use?** Tick **Web API**. Save.
-5. Open the app's **Settings** and copy the **Client ID**.
+5. Copy the **Client ID**.
 
 Spotify apps start in *Development mode*: up to 5 users, which you add under **User Management** (your own account is already allowed). Each person can also create their own app.
 
