@@ -18,8 +18,7 @@ You can use it entirely with the D-pad and number keys (no more annoying cursor)
 - Now playing screen with progress, shuffle and repeat
 - Home tabs can be **reordered and hidden** (Settings → Home tabs)
 - **10 languages**: English, Français, Deutsch, Español, Italiano, Português, Русский, 日本語, 中文, 한국어 (Paramètres / Settings → Language). Follows the phone's language by default. Translation fixes welcome: `app/src/main/res/values-*/strings.xml`
-- Home tabs can be **reordered and hidden** (Paramètres → Onglets de l'accueil)
-- About 60 KB, black theme, no images: light on old phones with little RAM
+- About 140 KB, black theme, no images: light on old phones with little RAM
 - On Kyocera phones, the grey soft key bar shows **Menu | OK | File**
 
 Without logging in, MiniSpot still works as a basic remote (play / pause, next, seek, like, radio) for the Spotify app or any music app.
@@ -27,8 +26,8 @@ Without logging in, MiniSpot still works as a basic remote (play / pause, next, 
 ## What you need
 
 - A **Spotify Premium** account. Spotify only lets Premium accounts own a developer app, and MiniSpot uses *your own* developer app.
-- The official **Spotify** app installed on the phone and logged in. It does the actual playback.
-- A computer (Windows, macOS or Linux) with **Python 3** and **adb** ([Android platform-tools](https://developer.android.com/tools/releases/platform-tools)).
+- The official **Spotify** app installed on the phone and logged in, download the apk if playstore not available. It does the actual playback.
+- A computer (Windows, macOS or Linux) with **Python 3** and **adb** ([Tutorial here](https://www.youtube.com/watch?v=pCBWWRMbzto)).
 - USB debugging enabled on the phone (Settings → About phone → tap *Build number* 7 times, then Developer options → USB debugging).
 
 ## Setup
@@ -45,6 +44,10 @@ Plug the phone in, open a terminal in that folder and run:
 
 ```
 adb install MiniSpot-1.1.0.apk
+Download `MiniSpot-x.y.z.apk` from the [Releases](../../releases) page, move the file to the Minimal ADB and Fastboot folder and run the cmd-here.exe, plug the phone in and run:
+
+```
+adb install MiniSpot-x.y.z.apk
 ```
 
 ### 2. Create your own Spotify app (once)
