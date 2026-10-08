@@ -1,0 +1,19 @@
+# Build output
+build/
+.gradle/
+*.apk
+*.aab
+*.idsig
+
+# Local machine / secrets: never commit
+local.properties
+keystore.properties
+*.jks
+*.keystore
+client_id.txt
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store

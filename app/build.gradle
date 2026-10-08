@@ -1,0 +1,54 @@
+plugins {
+	id 'com.android.application'
+}
+
+// Release signing: keystore.properties at the project root, or the file named by the
+// MINISPOT_KEYSTORE_PROPERTIES environment variable. Never commit it, see README.
+def keystoreProps = new Properties()
+def keystoreFile = System.getenv('MINISPOT_KEYSTORE_PROPERTIES') ? file(System.getenv('MINISPOT_KEYSTORE_PROPERTIES')) : rootProject.file('keystore.properties')
+if (keystoreFile.exists()) {
+	keystoreFile.withInputStream { keystoreProps.load(it) }
+}
+
+android {
+	namespace = 'com.minispot.app'
+	compileSdk = 37
+
+	defaultConfig {
+		applicationId = 'com.minispot.app'
+		minSdk = 24
+		targetSdk = 34
+		versionCode = 1
+		versionName = '1.0.0'
+		buildConfigField 'String', 'REDIRECT_URI', '"minispot://callback"'
+	}
+
+	buildFeatures {
+		buildConfig = true
+	}
+
+	signingConfigs {
+		release {
+			if (keystoreFile.exists()) {
+				storeFile = file(keystoreProps['storeFile'])
+				storePassword = keystoreProps['storePassword']
+				keyAlias = keystoreProps['keyAlias']
+				keyPassword = keystoreProps['keyPassword']
+			}
+		}
+	}
+
+	buildTypes {
+		release {
+			minifyEnabled = true
+			shrinkResources = true
+			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+			signingConfig = keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug
+		}
+	}
+
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_17
+		targetCompatibility JavaVersion.VERSION_17
+	}
+}
