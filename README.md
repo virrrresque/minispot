@@ -1,13 +1,15 @@
 # MiniSpot
 
-
-<img width="480" height="854" alt="search" src="https://github.com/user-attachments/assets/b8bf5f38-c865-4ba7-9dbd-01dec06303de" />
-<img width="480" height="854" alt="queue" src="https://github.com/user-attachments/assets/48b43099-6cb6-4173-b908-6020ce0d235c" />
-<img width="480" height="854" alt="playlists" src="https://github.com/user-attachments/assets/ff7ef22e-ccc4-49f5-8ce4-987870f129bd" />
-<img width="480" height="854" alt="nowplaying" src="https://github.com/user-attachments/assets/e5cc4af4-aa52-415a-844f-be428ea08276" />
-<img width="480" height="854" alt="menu" src="https://github.com/user-attachments/assets/791ae8f9-5340-4211-ae1a-779aa99fbbb9" />
-<img width="480" height="854" alt="home" src="https://github.com/user-attachments/assets/4501633d-a4b3-4a1e-be75-b5db6fb3d036" />
-
+<p align="center">
+  <img width="200" alt="home" src="https://github.com/user-attachments/assets/4501633d-a4b3-4a1e-be75-b5db6fb3d036" />
+  <img width="200" alt="search" src="https://github.com/user-attachments/assets/b8bf5f38-c865-4ba7-9dbd-01dec06303de" />
+  <img width="200" alt="playlists" src="https://github.com/user-attachments/assets/ff7ef22e-ccc4-49f5-8ce4-987870f129bd" />
+</p>
+<p align="center">
+  <img width="200" alt="now playing" src="https://github.com/user-attachments/assets/e5cc4af4-aa52-415a-844f-be428ea08276" />
+  <img width="200" alt="menu" src="https://github.com/user-attachments/assets/791ae8f9-5340-4211-ae1a-779aa99fbbb9" />
+  <img width="200" alt="queue" src="https://github.com/user-attachments/assets/48b43099-6cb6-4173-b908-6020ce0d235c" />
+</p>
 
 
 A Minimalistic Optimized version of Spotify for Dumbphones, YOU NEED SPOTIFY PREMIUM.
