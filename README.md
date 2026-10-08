@@ -1,8 +1,8 @@
 # MiniSpot
 
-A tiny, keypad-only Spotify remote for Android flip phones and other phones without a touchscreen.
+A Minimalistic Optimized version of Spotify for Dumbphones, YOU NEED SPOTIFY PREMIUM.
 
-MiniSpot gives you a fast, minimal interface you can drive entirely with the D-pad and number keys, while the official Spotify app plays the music in the background. It was built for the Kyocera DIGNO Keitai 3 (902KC, Android 8.1), and works on any keypad phone running Android 7 or newer.
+You can use it entirely with the D-pad and number keys (no more annoying cursor), while the official Spotify app plays the music in the background. It was built for the Kyocera DIGNO Keitai 3 (902KC, Android 8.1), and works on any keypad phone running Android 7 or newer. YOU NEED SPOTIFY PREMIUM
 
 *[Version française plus bas.](#français)*
 
@@ -17,7 +17,6 @@ MiniSpot gives you a fast, minimal interface you can drive entirely with the D-p
 - **Queue** key: see what plays next and skip to it
 - Now playing screen with progress, shuffle and repeat
 - Home tabs can be **reordered and hidden** (Paramètres → Onglets de l'accueil)
-- Interface in **French** (translations welcome)
 - About 60 KB, black theme, no images: light on old phones with little RAM
 - On Kyocera phones, the grey soft key bar shows **Menu | OK | File**
 
@@ -129,7 +128,7 @@ MIT, see [LICENSE](LICENSE). Icons: Material Design Icons (Apache 2.0), see [NOT
 
 ## Français
 
-MiniSpot est une petite télécommande Spotify pour téléphones à clapet et téléphones sans écran tactile. Tout se fait au clavier ; l'app Spotify officielle joue la musique en arrière-plan.
+MiniSpot est une version minimisée et optimisée de Spotify pour dumbphone or old phones. Tout se fait au clavier ; l'app Spotify officielle joue la musique en arrière-plan.
 
 **Il faut :** un compte **Spotify Premium**, l'app Spotify officielle sur le téléphone, un ordinateur avec **Python 3** et **adb**, et le débogage USB activé.
 
