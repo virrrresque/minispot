@@ -1,5 +1,14 @@
 # MiniSpot
 
+
+A Minimalistic Optimized version of Spotify for Dumbphones, YOU NEED SPOTIFY PREMIUM.
+
+You can use it entirely with the D-pad and number keys (no more annoying cursor), while the official Spotify app plays the music in the background. It was built for the Kyocera DIGNO Keitai 3 (902KC, Android 8.1), and works on any keypad phone running Android 7 or newer. YOU NEED SPOTIFY PREMIUM
+
+*[Version française plus bas.](#français)*
+
+> Unofficial project. Not affiliated with, endorsed or sponsored by Spotify AB.
+
 <p align="center">
   <img width="200" alt="home" src="https://github.com/user-attachments/assets/4501633d-a4b3-4a1e-be75-b5db6fb3d036" />
   <img width="200" alt="search" src="https://github.com/user-attachments/assets/b8bf5f38-c865-4ba7-9dbd-01dec06303de" />
@@ -11,14 +20,6 @@
   <img width="200" alt="queue" src="https://github.com/user-attachments/assets/48b43099-6cb6-4173-b908-6020ce0d235c" />
 </p>
 
-
-A Minimalistic Optimized version of Spotify for Dumbphones, YOU NEED SPOTIFY PREMIUM.
-
-You can use it entirely with the D-pad and number keys (no more annoying cursor), while the official Spotify app plays the music in the background. It was built for the Kyocera DIGNO Keitai 3 (902KC, Android 8.1), and works on any keypad phone running Android 7 or newer. YOU NEED SPOTIFY PREMIUM
-
-*[Version française plus bas.](#français)*
-
-> Unofficial project. Not affiliated with, endorsed or sponsored by Spotify AB.
 
 ## Features
 
