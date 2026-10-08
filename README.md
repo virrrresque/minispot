@@ -43,9 +43,6 @@ From the [Releases](../../releases) page, download these files and put login.py 
 Move `MiniSpot-x.y.z.apk` to the Minimal ADB and Fastboot folder and run the cmd-here.exe, plug the phone in and run:
 
 ```
-adb install MiniSpot-1.1.0.apk
-
-```
 adb install MiniSpot-x.y.z.apk
 ```
 
