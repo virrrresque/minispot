@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -71,6 +72,12 @@ public class RemoteActivity extends Activity {
 	private static final String PREF_HOME_ORDER = "home_order";
 	private static final String PREF_PINS = "pins";
 	private static final String PREF_HOME_HIDDEN = "home_hidden";
+	private static final String PREF_LANG = "lang";
+	/** Language tag and its own name; "" follows the phone. */
+	private static final String[][] LANGUAGES = {
+		{"en", "English"}, {"fr", "Français"}, {"de", "Deutsch"}, {"es", "Español"}, {"it", "Italiano"},
+		{"pt", "Português"}, {"ru", "Русский"}, {"ja", "日本語"}, {"zh-CN", "中文（简体）"}, {"ko", "한국어"},
+	};
 	/** Home screen entries, in default order. */
 	private static final String[] HOME_KEYS = {"recents", "search", "playlists", "liked", "albums", "artists", "podcasts", "history"};
 	/** Set by TokenReceiver after a login made on the PC. */
@@ -107,7 +114,7 @@ public class RemoteActivity extends Activity {
 		/** Spotify object type ("track", "episode", "playlist", "album", "artist", "show") and its JSON, for the menu. */
 		String kind;
 		JSONObject data;
-		/** Drawn in green: the "En cours" row, the entry being moved. */
+		/** Drawn in green: the t(R.string.now_playing) row, the entry being moved. */
 		boolean highlight;
 		/** Drawn in grey: a home tab that is hidden. */
 		boolean dim;
@@ -145,12 +152,12 @@ public class RemoteActivity extends Activity {
 	private Api api;
 
 	private MediaController controller;
-	/** Package picked in the "Lecteur" screen, "" for automatic. */
+	/** Package picked in the t(R.string.player) screen, "" for automatic. */
 	private String chosen = "";
 	/** Shuffle / repeat as last read from the Web API (repeat: "off", "context", "track"). */
 	private boolean shuffleOn;
 	private String repeatMode = "off";
-	/** The home screen's "En cours" row, refreshed with the current track. */
+	/** The home screen's t(R.string.now_playing) row, refreshed with the current track. */
 	private Row nowRow;
 	/** Play state shown right after OK, until the player confirms it (Spotify can take a second). */
 	private Boolean optimisticPlaying;
@@ -191,6 +198,26 @@ public class RemoteActivity extends Activity {
 		}
 	};
 
+	/** Applies the language picked in Settings, if any, before any text is loaded. */
+	@Override
+	protected void attachBaseContext(Context base) {
+		String lang = base.getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_LANG, "");
+		if (!lang.isEmpty()) {
+			Configuration config = new Configuration(base.getResources().getConfiguration());
+			config.setLocale(Locale.forLanguageTag(lang));
+			base = base.createConfigurationContext(config);
+		}
+		super.attachBaseContext(base);
+	}
+
+	private String t(int id) {
+		return getString(id);
+	}
+
+	private String t(int id, Object... args) {
+		return getString(id, args);
+	}
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -208,7 +235,7 @@ public class RemoteActivity extends Activity {
 	protected void onNewIntent(Intent intent) {
 		super.onNewIntent(intent);
 		if (intent.getBooleanExtra(EXTRA_LOGGED_IN, false)) {
-			toast("Connecté à Spotify");
+			toast(t(R.string.logged_in));
 			showHome();
 			return;
 		}
@@ -343,7 +370,7 @@ public class RemoteActivity extends Activity {
 		}
 		if (controller == null) {
 			wakePlayer();
-			toast("Démarrage de " + appLabel(player()) + "…");
+			toast(t(R.string.starting, appLabel(player())));
 			return null;
 		}
 		return controller.getTransportControls();
@@ -401,7 +428,7 @@ public class RemoteActivity extends Activity {
 		searchBox.setSingleLine(true);
 		searchBox.setTextColor(Color.WHITE);
 		searchBox.setHintTextColor(GRAY);
-		searchBox.setHint("Titre, artiste, album, playlist…");
+		searchBox.setHint(R.string.search_hint);
 		searchBox.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
 		searchBox.setCompoundDrawables(icon(R.drawable.ic_search, GRAY, 20), null, null, null);
 		searchBox.setCompoundDrawablePadding(dp(6));
@@ -585,9 +612,7 @@ public class RemoteActivity extends Activity {
 			searchBox.setVisibility(View.GONE);
 			npView.setVisibility(View.VISIBLE);
 			imm.hideSoftInputFromWindow(searchBox.getWindowToken(), 0);
-			hintView.setText(api.isLoggedIn()
-				? "OK ou 5 lecture / pause · gauche / droite titre · haut / bas volume\n4 / 6 ±15 s · 7 aléatoire · 9 répéter · ✱ j'aime"
-				: "OK ou 5 lecture / pause · gauche / droite titre · haut / bas volume\n4 / 6 ±15 s · 7 radio · 9 répéter · ✱ j'aime");
+			hintView.setText(api.isLoggedIn() ? R.string.hint_np_web : R.string.hint_np_free);
 			updateNow();
 			refreshPlayerOptions();
 			return;
@@ -610,9 +635,7 @@ public class RemoteActivity extends Activity {
 			list.requestFocus();
 		}
 		list.setSelection(Math.min(s.selection, Math.max(0, s.rows.size() - 1)));
-		hintView.setText(s.reorder
-			? "OK sur un onglet : déplacer, masquer ou afficher\nEn déplacement : haut / bas puis OK pour poser"
-			: "OK ouvrir / lire · 5 lecture / pause · 1 / 3 titre\n4 / 6 ±15 s · 0 En cours · gauche retour");
+		hintView.setText(s.reorder ? R.string.hint_tabs : R.string.hint_list);
 		updateSoftKeys();
 	}
 
@@ -624,14 +647,14 @@ public class RemoteActivity extends Activity {
 		}
 		String center;
 		if (s.nowPlaying) {
-			center = isPlaying() ? "Pause" : "Lecture";
+			center = isPlaying() ? t(R.string.sk_pause) : t(R.string.sk_play);
 		} else if (s.reorder) {
-			center = s.moving >= 0 ? "Poser" : "Choisir";
+			center = s.moving >= 0 ? t(R.string.sk_drop) : t(R.string.sk_choose);
 		} else {
 			center = "OK";
 		}
 		boolean web = api.isLoggedIn();
-		softKeys.set(web ? "Menu" : "Réglages", center, web ? "File" : "");
+		softKeys.set(web ? t(R.string.sk_menu) : t(R.string.sk_settings), center, web ? t(R.string.sk_queue) : "");
 	}
 
 	private Row header(String label) {
@@ -644,7 +667,7 @@ public class RemoteActivity extends Activity {
 		stack.clear();
 		Screen s = new Screen("MiniSpot");
 		s.home = true;
-		nowRow = new Row(R.drawable.ic_play, "En cours", null, this::showNowPlaying);
+		nowRow = new Row(R.drawable.ic_play, t(R.string.now_playing), null, this::showNowPlaying);
 		nowRow.highlight = true;
 		s.rows.add(nowRow);
 		if (api.isLoggedIn()) {
@@ -653,19 +676,19 @@ public class RemoteActivity extends Activity {
 			for (int i = 0; i < order.size(); i++) {
 				String key = order.get(i);
 				if (key.equals("recents")) {
-					s.rows.add(header("Récents"));
+					s.rows.add(header(t(R.string.recent)));
 					loadInto(s, "/me/player/recently-played?limit=50", this::parseRecentShortcuts);
 					if (i < order.size() - 1) {
-						s.rows.add(header("Bibliothèque"));
+						s.rows.add(header(t(R.string.library)));
 					}
 				} else {
 					s.rows.add(homeRow(key));
 				}
 			}
 		} else {
-			s.rows.add(new Row(R.drawable.ic_search, "Rechercher", "Ouvre les résultats dans Spotify", this::showSearch));
+			s.rows.add(new Row(R.drawable.ic_search, t(R.string.search), t(R.string.search_in_spotify), this::showSearch));
 		}
-		s.rows.add(new Row(R.drawable.ic_settings, "Paramètres", null, this::showSettings));
+		s.rows.add(new Row(R.drawable.ic_settings, t(R.string.settings), null, this::showSettings));
 		push(s);
 		updateNow();
 	}
@@ -689,21 +712,21 @@ public class RemoteActivity extends Activity {
 	private Row homeRow(String key) {
 		switch (key) {
 			case "recents":
-				return new Row(R.drawable.ic_history, "Récents", "Les 4 dernières écoutes", null);
+				return new Row(R.drawable.ic_history, t(R.string.recent), t(R.string.recent_sub), null);
 			case "search":
-				return new Row(R.drawable.ic_search, "Rechercher", null, this::showSearch);
+				return new Row(R.drawable.ic_search, t(R.string.search), null, this::showSearch);
 			case "playlists":
-				return new Row(R.drawable.ic_playlist, "Playlists", null, this::openPlaylists);
+				return new Row(R.drawable.ic_playlist, t(R.string.playlists), null, this::openPlaylists);
 			case "liked":
-				return new Row(R.drawable.ic_heart, "Titres likés", null, () -> openList("Titres likés", "/me/tracks?limit=50", j -> parseTracks(j, "track")));
+				return new Row(R.drawable.ic_heart, t(R.string.liked), null, () -> openList(t(R.string.liked), "/me/tracks?limit=50", j -> parseTracks(j, "track")));
 			case "albums":
-				return new Row(R.drawable.ic_album, "Albums", null, () -> openList("Albums", "/me/albums?limit=50", this::parseSavedAlbums));
+				return new Row(R.drawable.ic_album, t(R.string.albums), null, () -> openList(t(R.string.albums), "/me/albums?limit=50", this::parseSavedAlbums));
 			case "artists":
-				return new Row(R.drawable.ic_artist, "Artistes", null, () -> openList("Artistes", "/me/following?type=artist&limit=50", this::parseFollowedArtists));
+				return new Row(R.drawable.ic_artist, t(R.string.artists), null, () -> openList(t(R.string.artists), "/me/following?type=artist&limit=50", this::parseFollowedArtists));
 			case "podcasts":
-				return new Row(R.drawable.ic_podcast, "Podcasts", null, () -> openList("Podcasts", "/me/shows?limit=50", this::parseShows));
+				return new Row(R.drawable.ic_podcast, t(R.string.podcasts), null, () -> openList(t(R.string.podcasts), "/me/shows?limit=50", this::parseShows));
 			default:
-				return new Row(R.drawable.ic_history, "Historique", null, () -> openList("Historique", "/me/player/recently-played?limit=50", this::parseRecent));
+				return new Row(R.drawable.ic_history, t(R.string.history), null, () -> openList(t(R.string.history), "/me/player/recently-played?limit=50", this::parseRecent));
 		}
 	}
 
@@ -712,16 +735,16 @@ public class RemoteActivity extends Activity {
 		return new HashSet<>(Arrays.asList(saved.split(",")));
 	}
 
-	/** "Onglets de l'accueil": OK on an entry offers to move it or to hide / show it. */
+	/** t(R.string.home_tabs): OK on an entry offers to move it or to hide / show it. */
 	private void showReorder() {
-		Screen s = new Screen("Onglets de l'accueil");
+		Screen s = new Screen(t(R.string.home_tabs));
 		s.reorder = true;
 		Set<String> hidden = hiddenTabs();
 		for (String key : homeOrder()) {
 			Row r = homeRow(key);
 			r.kind = key;
 			r.dim = hidden.contains(key);
-			r.sub = r.dim ? "Masqué" : "Affiché";
+			r.sub = r.dim ? t(R.string.tab_hidden) : t(R.string.tab_shown);
 			r.action = () -> onTabRow(r);
 			s.rows.add(r);
 		}
@@ -735,19 +758,19 @@ public class RemoteActivity extends Activity {
 			dropTab(s);
 			return;
 		}
-		String[] choices = {"Déplacer", r.dim ? "Afficher sur l'accueil" : "Masquer de l'accueil"};
+		String[] choices = {t(R.string.move), r.dim ? t(R.string.show_on_home) : t(R.string.hide_from_home)};
 		new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
 			.setTitle(r.label)
 			.setItems(choices, (dialog, which) -> {
 				if (which == 0) {
 					s.moving = s.rows.indexOf(r);
 					r.highlight = true;
-					r.sub = "Haut / bas pour déplacer, OK pour poser";
+					r.sub = t(R.string.moving_hint);
 				} else {
 					r.dim = !r.dim;
-					r.sub = r.dim ? "Masqué" : "Affiché";
+					r.sub = r.dim ? t(R.string.tab_hidden) : t(R.string.tab_shown);
 					saveTabs(s);
-					toast(r.dim ? r.label + " masqué" : r.label + " affiché");
+					toast(t(r.dim ? R.string.tab_hidden_toast : R.string.tab_shown_toast, r.label));
 				}
 				adapter.notifyDataSetChanged();
 				updateSoftKeys();
@@ -759,9 +782,9 @@ public class RemoteActivity extends Activity {
 		Row r = s.rows.get(s.moving);
 		s.moving = -1;
 		r.highlight = false;
-		r.sub = r.dim ? "Masqué" : "Affiché";
+		r.sub = r.dim ? t(R.string.tab_hidden) : t(R.string.tab_shown);
 		saveTabs(s);
-		toast("Ordre enregistré");
+		toast(t(R.string.order_saved));
 		adapter.notifyDataSetChanged();
 		updateSoftKeys();
 	}
@@ -794,25 +817,52 @@ public class RemoteActivity extends Activity {
 	}
 
 	private void showSettings() {
-		Screen s = new Screen("Paramètres");
+		Screen s = new Screen(t(R.string.settings));
 		if (api.isLoggedIn()) {
-			s.rows.add(new Row(R.drawable.ic_logout, "Se déconnecter de Spotify", null, () -> {
+			s.rows.add(new Row(R.drawable.ic_logout, t(R.string.logout), null, () -> {
 				api.logout();
-				toast("Déconnecté");
+				toast(t(R.string.logged_out));
 				showHome();
 			}));
 		} else {
-			s.rows.add(new Row(R.drawable.ic_login, "Se connecter à Spotify", "Premium : recherche et bibliothèque ici", this::login));
+			s.rows.add(new Row(R.drawable.ic_login, t(R.string.login), t(R.string.login_sub), this::login));
 		}
 		String id = api.clientId();
-		s.rows.add(new Row(R.drawable.ic_device, "Client ID Spotify",
-			id.isEmpty() ? "Non défini" : id.substring(0, 6) + "…", () -> askClientId(null)));
+		s.rows.add(new Row(R.drawable.ic_device, t(R.string.client_id),
+			id.isEmpty() ? t(R.string.not_set) : id.substring(0, 6) + "…", () -> askClientId(null)));
 		if (api.isLoggedIn()) {
-			s.rows.add(new Row(R.drawable.ic_reorder, "Onglets de l'accueil", "Ordre, masquer, afficher", this::showReorder));
+			s.rows.add(new Row(R.drawable.ic_reorder, t(R.string.home_tabs), t(R.string.home_tabs_sub), this::showReorder));
 		}
-		s.rows.add(new Row(R.drawable.ic_device, "Lecteur", chosen.isEmpty() ? "Automatique" : appLabel(chosen), this::showPlayers));
-		s.rows.add(new Row(R.drawable.ic_help, "Aide des touches", null, this::showHelp));
+		s.rows.add(new Row(R.drawable.ic_device, t(R.string.player), chosen.isEmpty() ? t(R.string.automatic) : appLabel(chosen), this::showPlayers));
+		s.rows.add(new Row(R.drawable.ic_language, t(R.string.language), languageName(), this::showLanguages));
+		s.rows.add(new Row(R.drawable.ic_help, t(R.string.key_help), null, this::showHelp));
 		push(s);
+	}
+
+	private String languageName() {
+		String lang = getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_LANG, "");
+		for (String[] l : LANGUAGES) {
+			if (l[0].equals(lang)) {
+				return l[1];
+			}
+		}
+		return t(R.string.lang_system);
+	}
+
+	private void showLanguages() {
+		String current = getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_LANG, "");
+		Screen s = new Screen(t(R.string.language));
+		s.rows.add(new Row(current.isEmpty() ? R.drawable.ic_check : R.drawable.ic_language, t(R.string.lang_system), null, () -> chooseLanguage("")));
+		for (String[] l : LANGUAGES) {
+			s.rows.add(new Row(l[0].equals(current) ? R.drawable.ic_check : R.drawable.ic_language, l[1], null, () -> chooseLanguage(l[0])));
+		}
+		push(s);
+	}
+
+	/** Saves the language and restarts the screen in it. */
+	private void chooseLanguage(String lang) {
+		getSharedPreferences("settings", MODE_PRIVATE).edit().putString(PREF_LANG, lang).apply();
+		recreate();
 	}
 
 	private String appLabel(String pkg) {
@@ -845,9 +895,9 @@ public class RemoteActivity extends Activity {
 		}
 		pkgs.remove(getPackageName());
 
-		Screen s = new Screen("Lecteur");
-		s.rows.add(new Row(chosen.isEmpty() ? R.drawable.ic_check : R.drawable.ic_device, "Automatique",
-			"Spotify Lite, Spotify, sinon l'app qui joue", () -> choosePlayer("")));
+		Screen s = new Screen(t(R.string.player));
+		s.rows.add(new Row(chosen.isEmpty() ? R.drawable.ic_check : R.drawable.ic_device, t(R.string.automatic),
+			t(R.string.player_auto_sub), () -> choosePlayer("")));
 		for (String pkg : pkgs) {
 			s.rows.add(new Row(pkg.equals(chosen) ? R.drawable.ic_check : R.drawable.ic_device, appLabel(pkg), pkg, () -> choosePlayer(pkg)));
 		}
@@ -859,23 +909,23 @@ public class RemoteActivity extends Activity {
 		getSharedPreferences("settings", MODE_PRIVATE).edit().putString(PREF_PLAYER, pkg).apply();
 		setController(null);
 		findSession();
-		toast("Lecteur : " + (pkg.isEmpty() ? "Automatique" : appLabel(pkg)));
+		toast(t(R.string.player_set, pkg.isEmpty() ? t(R.string.automatic) : appLabel(pkg)));
 		showHome();
 	}
 
 	private void showHelp() {
-		Screen s = new Screen("Aide des touches");
+		Screen s = new Screen(t(R.string.key_help));
 		boolean web = api.isLoggedIn();
 		String[][] help = {
-			{"Haut / bas", "se déplacer"}, {"OK (centre)", "ouvrir / lire ; dans l'écran En cours : lecture / pause"},
-			{"Gauche ou クリア", "retour"},
-			{"5", "lecture / pause"}, {"1 / 3", "titre précédent / suivant"},
-			{"4 / 6", "reculer / avancer de 15 s"}, {"2 / 8", "volume + / -"},
-			{"7", web ? "aléatoire on / off" : "radio du titre"}, {"9", "répéter"},
-			{"0 ou touche verte", "écran « En cours »"}, {"✱", "j'aime / je n'aime plus"},
-			{"#", "ajouter le titre sélectionné à la file, sinon rechercher"},
-			{"Touche gauche « Menu »", "options : épingler, bibliothèque, file, artiste, vitesse de lecture…"},
-			{"Touche droite « File »", "file d'attente"},
+			{t(R.string.h_updown), t(R.string.h_updown_d)}, {t(R.string.h_ok), t(R.string.h_ok_d)},
+			{t(R.string.h_back), t(R.string.h_back_d)},
+			{"5", t(R.string.h_play_d)}, {"1 / 3", t(R.string.h_track_d)},
+			{"4 / 6", t(R.string.h_seek_d)}, {"2 / 8", t(R.string.h_volume_d)},
+			{"7", t(web ? R.string.h_shuffle_d : R.string.h_radio_d)}, {"9", t(R.string.h_repeat_d)},
+			{t(R.string.h_zero), t(R.string.h_zero_d)}, {"✱", t(R.string.h_like_d)},
+			{"#", t(R.string.h_pound_d)},
+			{t(R.string.h_menu, t(R.string.sk_menu)), t(R.string.h_menu_d)},
+			{t(R.string.h_queue, t(R.string.sk_queue)), t(R.string.queue_title)},
 		};
 		for (String[] h : help) {
 			s.rows.add(new Row(0, h[0], h[1], null));
@@ -888,16 +938,16 @@ public class RemoteActivity extends Activity {
 		if (cur != null && cur.nowPlaying) {
 			return;
 		}
-		Screen s = new Screen("En cours");
+		Screen s = new Screen(t(R.string.now_playing));
 		s.nowPlaying = true;
 		push(s);
 	}
 
 	private void showSearch() {
-		Screen s = new Screen("Rechercher");
+		Screen s = new Screen(t(R.string.search));
 		s.search = true;
 		if (!api.isLoggedIn()) {
-			s.rows.add(header("Écris puis appuie sur OK"));
+			s.rows.add(header(t(R.string.type_then_ok)));
 		}
 		searchBox.setText("");
 		push(s);
@@ -922,7 +972,7 @@ public class RemoteActivity extends Activity {
 		try {
 			startActivity(i);
 		} catch (Exception e) {
-			toast("Spotify introuvable");
+			toast(t(R.string.spotify_missing));
 		}
 	}
 
@@ -940,22 +990,22 @@ public class RemoteActivity extends Activity {
 			if (id.contains("SEEK")) {
 				continue;
 			}
-			labels.add(frenchActionName(id, String.valueOf(a.getName())));
+			labels.add(actionName(id, String.valueOf(a.getName())));
 			actions.add(() -> {
 				controller.getTransportControls().sendCustomAction(a, null);
-				toast(frenchActionName(id, String.valueOf(a.getName())));
+				toast(actionName(id, String.valueOf(a.getName())));
 			});
 		}
 	}
 
-	private static String frenchActionName(String id, String name) {
+	private String actionName(String id, String name) {
 		String n = name.toLowerCase(Locale.ROOT);
-		if (id.contains("SPEED")) return "Vitesse de lecture";
-		if (id.contains("RADIO")) return "Lancer la radio";
-		if (id.contains("REPEAT")) return "Répéter";
-		if (id.contains("SHUFFLE")) return "Aléatoire";
-		if (n.startsWith("remove")) return "Retirer de la collection";
-		if (n.startsWith("add") || id.contains("COLLECTION") || id.contains("EPISODES")) return "Ajouter à la collection";
+		if (id.contains("SPEED")) return t(R.string.action_speed);
+		if (id.contains("RADIO")) return t(R.string.action_radio);
+		if (id.contains("REPEAT")) return t(R.string.action_repeat);
+		if (id.contains("SHUFFLE")) return t(R.string.action_shuffle);
+		if (n.startsWith("remove")) return t(R.string.action_collection_remove);
+		if (n.startsWith("add") || id.contains("COLLECTION") || id.contains("EPISODES")) return t(R.string.action_collection_add);
 		return name;
 	}
 
@@ -965,28 +1015,27 @@ public class RemoteActivity extends Activity {
 	private void askClientId(Runnable then) {
 		EditText input = new EditText(this);
 		input.setSingleLine(true);
-		input.setHint("32 caractères (0-9, a-f)");
+		input.setHint(R.string.client_id_hint);
 		input.setText(api.clientId());
 		new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-			.setTitle("Client ID Spotify")
-			.setMessage("Crée ton app sur developer.spotify.com et copie son Client ID. "
-				+ "Plus simple : lance login-pc.py sur le PC, il l'envoie tout seul.")
+			.setTitle(t(R.string.client_id))
+			.setMessage(t(R.string.client_id_msg))
 			.setView(input)
 			.setPositiveButton("OK", (dialog, which) -> {
 				String id = input.getText().toString().trim();
 				if (!Api.isValidClientId(id)) {
-					toast("Client ID invalide");
+					toast(t(R.string.client_id_invalid));
 					return;
 				}
 				api.setClientId(id);
-				toast("Client ID enregistré");
+				toast(t(R.string.client_id_saved));
 				if (then != null) {
 					then.run();
 				} else {
 					showHome();
 				}
 			})
-			.setNegativeButton("Annuler", null)
+			.setNegativeButton(t(R.string.cancel), null)
 			.show();
 	}
 
@@ -997,9 +1046,9 @@ public class RemoteActivity extends Activity {
 		}
 		try {
 			startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(api.loginUrl(SCOPES))));
-			toast("Connecte-toi dans le navigateur, puis accepte");
+			toast(t(R.string.login_in_browser));
 		} catch (Exception e) {
-			toast("Aucun navigateur pour se connecter");
+			toast(t(R.string.no_browser));
 		}
 	}
 
@@ -1012,18 +1061,18 @@ public class RemoteActivity extends Activity {
 		String code = data.getQueryParameter("code");
 		String state = data.getQueryParameter("state");
 		if (code == null) {
-			toast("Connexion annulée : " + data.getQueryParameter("error"));
+			toast(t(R.string.login_cancelled, data.getQueryParameter("error")));
 			return;
 		}
-		toast("Connexion…");
+		toast(t(R.string.logging_in));
 		io.execute(() -> {
 			try {
 				api.exchangeCode(code, state);
-				toast("Connecté à Spotify");
+				toast(t(R.string.logged_in));
 				main.post(this::showHome);
 			} catch (Exception e) {
 				Log.w(TAG, "login", e);
-				toast("Connexion échouée : " + errorText(e));
+				toast(t(R.string.login_failed, errorText(e)));
 			}
 		});
 	}
@@ -1038,8 +1087,8 @@ public class RemoteActivity extends Activity {
 
 	private void addPlayRows(Screen s, String contextUri) {
 		s.contextUri = contextUri;
-		s.rows.add(new Row(R.drawable.ic_play, "Tout lire", null, () -> playContext(contextUri, false)));
-		s.rows.add(new Row(R.drawable.ic_shuffle, "Lecture aléatoire", null, () -> playContext(contextUri, true)));
+		s.rows.add(new Row(R.drawable.ic_play, t(R.string.play_all), null, () -> playContext(contextUri, false)));
+		s.rows.add(new Row(R.drawable.ic_shuffle, t(R.string.shuffle_play), null, () -> playContext(contextUri, true)));
 	}
 
 	private void openPlaylist(String name, String id, String uri) {
@@ -1059,17 +1108,17 @@ public class RemoteActivity extends Activity {
 
 	private void openArtist(String name, String id, String uri) {
 		Screen s = new Screen(name);
-		s.rows.add(new Row(R.drawable.ic_play, "Lire l'artiste", null, () -> playContext(uri, false)));
-		s.rows.add(new Row(R.drawable.ic_shuffle, "Lecture aléatoire", null, () -> playContext(uri, true)));
-		s.rows.add(header("Albums et singles"));
+		s.rows.add(new Row(R.drawable.ic_play, t(R.string.play_artist), null, () -> playContext(uri, false)));
+		s.rows.add(new Row(R.drawable.ic_shuffle, t(R.string.shuffle_play), null, () -> playContext(uri, true)));
+		s.rows.add(header(t(R.string.albums_singles)));
 		loadInto(s, "/artists/" + id + "/albums?include_groups=album,single&limit=50", this::parseAlbums);
 		push(s);
 	}
 
 	private void openShow(String name, String id, String uri) {
 		Screen s = new Screen(name);
-		s.rows.add(new Row(R.drawable.ic_play, "Lire", null, () -> playContext(uri, false)));
-		s.rows.add(libraryRow(uri, "Suivre ce podcast", "Ne plus suivre ce podcast"));
+		s.rows.add(new Row(R.drawable.ic_play, t(R.string.play), null, () -> playContext(uri, false)));
+		s.rows.add(libraryRow(uri, t(R.string.follow_podcast), t(R.string.unfollow_podcast)));
 		loadInto(s, "/shows/" + id + "/episodes?limit=50", this::parseEpisodes);
 		push(s);
 	}
@@ -1081,13 +1130,13 @@ public class RemoteActivity extends Activity {
 		String base = "/search?q=" + Api.enc(q) + "&limit=10&type=";
 		loadInto(s, base + "track,artist,album,playlist,show", json -> {
 			Page p = new Page();
-			appendSection(p, "Titres", json.optJSONObject("tracks"), j -> parseTracks(j, null));
-			appendSection(p, "Artistes", json.optJSONObject("artists"), this::parseArtists);
-			appendSection(p, "Albums", json.optJSONObject("albums"), this::parseAlbums);
-			appendSection(p, "Playlists", json.optJSONObject("playlists"), this::parsePlaylists);
-			appendSection(p, "Podcasts", json.optJSONObject("shows"), this::parseShowItems);
+			appendSection(p, t(R.string.tracks), json.optJSONObject("tracks"), j -> parseTracks(j, null));
+			appendSection(p, t(R.string.artists), json.optJSONObject("artists"), this::parseArtists);
+			appendSection(p, t(R.string.albums), json.optJSONObject("albums"), this::parseAlbums);
+			appendSection(p, t(R.string.playlists), json.optJSONObject("playlists"), this::parsePlaylists);
+			appendSection(p, t(R.string.podcasts), json.optJSONObject("shows"), this::parseShowItems);
 			if (p.rows.isEmpty()) {
-				p.rows.add(header("Aucun résultat"));
+				p.rows.add(header(t(R.string.no_results)));
 			}
 			return p;
 		});
@@ -1107,7 +1156,7 @@ public class RemoteActivity extends Activity {
 		out.rows.addAll(p.rows);
 		if (p.next != null) {
 			// search "next" pages wrap the paging object in its type key, e.g. {"tracks": {...}}
-			out.rows.add(moreRow("Plus de " + title.toLowerCase(Locale.ROOT), p.next, j -> {
+			out.rows.add(moreRow(t(R.string.more_of, title.toLowerCase()), p.next, j -> {
 				JSONObject inner = j.optJSONObject(j.keys().next());
 				return parser.parse(inner != null && inner.has("items") ? inner : j);
 			}));
@@ -1115,7 +1164,7 @@ public class RemoteActivity extends Activity {
 	}
 
 	private void loadInto(Screen s, String url, Parser parser) {
-		Row placeholder = header("Chargement…");
+		Row placeholder = header(t(R.string.loading));
 		s.rows.add(placeholder);
 		io.execute(() -> {
 			Page page = null;
@@ -1137,10 +1186,10 @@ public class RemoteActivity extends Activity {
 				if (result != null) {
 					s.rows.addAll(at, result.rows);
 					if (result.next != null) {
-						s.rows.add(at + result.rows.size(), moreRow("Charger plus", result.next, parser));
+						s.rows.add(at + result.rows.size(), moreRow(t(R.string.load_more), result.next, parser));
 					}
 					if (result.rows.isEmpty() && result.next == null) {
-						s.rows.add(at, header("(vide)"));
+						s.rows.add(at, header(t(R.string.empty)));
 					}
 				} else {
 					s.rows.add(at, header(err));
@@ -1171,7 +1220,7 @@ public class RemoteActivity extends Activity {
 		Screen s = current();
 		String label = more.label;
 		more.header = true;
-		more.label = "Chargement…";
+		more.label = t(R.string.loading);
 		adapter.notifyDataSetChanged();
 		io.execute(() -> {
 			Page page = null;
@@ -1190,7 +1239,7 @@ public class RemoteActivity extends Activity {
 				}
 				if (result == null) {
 					more.header = false;
-					more.label = "Réessayer (" + err + ")";
+					more.label = t(R.string.retry_err, err);
 				} else {
 					s.rows.remove(at);
 					s.rows.addAll(at, result.rows);
@@ -1216,12 +1265,12 @@ public class RemoteActivity extends Activity {
 		}
 	}
 
-	private static String errorText(Exception e) {
+	private String errorText(Exception e) {
 		if (e instanceof java.net.UnknownHostException || e instanceof java.net.SocketTimeoutException) {
-			return "Pas de connexion internet";
+			return t(R.string.no_internet);
 		}
 		if (e instanceof Api.ApiException && ((Api.ApiException) e).status == 403) {
-			return e.getMessage() + " (Premium requis ?)";
+			return t(R.string.premium_required, e.getMessage());
 		}
 		return e.getMessage() != null ? e.getMessage() : e.toString();
 	}
@@ -1288,7 +1337,7 @@ public class RemoteActivity extends Activity {
 			count = o.optJSONObject("tracks");
 		}
 		String sub = (owner != null ? owner.optString("display_name") : "")
-			+ (count != null ? " · " + count.optInt("total") + " titres" : "");
+			+ (count != null ? " · " + t(R.string.n_tracks, count.optInt("total")) : "");
 		String name = o.optString("name"), id = o.optString("id"), uri = o.optString("uri");
 		return tag(new Row(R.drawable.ic_playlist, name, sub, () -> openPlaylist(name, id, uri)), "playlist", o);
 	}
@@ -1342,7 +1391,7 @@ public class RemoteActivity extends Activity {
 
 	private Row artistRow(JSONObject o) {
 		String name = o.optString("name"), id = o.optString("id"), uri = o.optString("uri");
-		return tag(new Row(R.drawable.ic_artist, name, "Artiste", () -> openArtist(name, id, uri)), "artist", o);
+		return tag(new Row(R.drawable.ic_artist, name, t(R.string.artist), () -> openArtist(name, id, uri)), "artist", o);
 	}
 
 	private Page parseArtists(JSONObject json) {
@@ -1371,7 +1420,7 @@ public class RemoteActivity extends Activity {
 
 	private Row showRow(JSONObject show) {
 		String name = show.optString("name"), id = show.optString("id"), uri = show.optString("uri");
-		return tag(new Row(R.drawable.ic_podcast, name, "Podcast", () -> openShow(name, id, uri)), "show", show);
+		return tag(new Row(R.drawable.ic_podcast, name, t(R.string.podcast), () -> openShow(name, id, uri)), "show", show);
 	}
 
 	/**
@@ -1436,7 +1485,7 @@ public class RemoteActivity extends Activity {
 			}
 		}
 		if (p.rows.isEmpty()) {
-			p.rows.add(header("Rien écouté récemment"));
+			p.rows.add(header(t(R.string.nothing_recent)));
 		}
 		return p;
 	}
@@ -1507,7 +1556,7 @@ public class RemoteActivity extends Activity {
 					}
 				}
 				if (device == null) {
-					toast("Spotify pas prêt : ouvre Spotify une fois puis réessaie");
+					toast(t(R.string.spotify_not_ready));
 					return;
 				}
 				try {
@@ -1612,11 +1661,11 @@ public class RemoteActivity extends Activity {
 	}
 
 	private void queueRow(Row r) {
-		onDevice("Ajouté à la file : " + r.label,
+		onDevice(t(R.string.queued, r.label),
 			device -> api.post("/me/player/queue?uri=" + Api.enc(r.uri) + "&device_id=" + device));
 	}
 
-	/** Reads shuffle / repeat from the Web API for the "En cours" screen. */
+	/** Reads shuffle / repeat from the Web API for the t(R.string.now_playing) screen. */
 	private void refreshPlayerOptions() {
 		if (!api.isLoggedIn()) {
 			updatePlayerOptions();
@@ -1647,7 +1696,7 @@ public class RemoteActivity extends Activity {
 
 	private void toggleShuffleWeb() {
 		boolean on = !shuffleOn;
-		onDevice(on ? "Aléatoire activé" : "Aléatoire désactivé", device -> {
+		onDevice(on ? t(R.string.shuffle_on) : t(R.string.shuffle_off), device -> {
 			api.put("/me/player/shuffle?state=" + on + "&device_id=" + device, null);
 			shuffleOn = on;
 			main.post(this::updatePlayerOptions);
@@ -1656,7 +1705,7 @@ public class RemoteActivity extends Activity {
 
 	private void cycleRepeatWeb() {
 		String next = "off".equals(repeatMode) ? "context" : "context".equals(repeatMode) ? "track" : "off";
-		String label = "off".equals(next) ? "Répéter : non" : "context".equals(next) ? "Répéter : tout" : "Répéter : ce titre";
+		String label = "off".equals(next) ? t(R.string.repeat_off) : "context".equals(next) ? t(R.string.repeat_all) : t(R.string.repeat_one);
 		onDevice(label, device -> {
 			api.put("/me/player/repeat?state=" + next + "&device_id=" + device, null);
 			repeatMode = next;
@@ -1676,17 +1725,17 @@ public class RemoteActivity extends Activity {
 					uri = item != null ? item.optString("uri", null) : null;
 				}
 				if (uri == null) {
-					toast("Rien en cours");
+					toast(t(R.string.nothing_playing));
 					return;
 				}
 				String q = "/me/library?uris=" + Api.enc(uri);
 				boolean saved = api.getArray("/me/library/contains?uris=" + Api.enc(uri)).optBoolean(0);
 				if (saved) {
 					api.delete(q);
-					toast("Retiré des titres likés");
+					toast(t(R.string.unliked));
 				} else {
 					api.put(q, null);
-					toast("Ajouté aux titres likés");
+					toast(t(R.string.liked_added));
 				}
 			} catch (Exception e) {
 				toast(errorText(e));
@@ -1741,7 +1790,7 @@ public class RemoteActivity extends Activity {
 			}
 		}
 		getSharedPreferences("settings", MODE_PRIVATE).edit().putString(PREF_PINS, out.toString()).apply();
-		toast(removed ? "Désépinglé" : "Épinglé en haut des playlists");
+		toast(removed ? t(R.string.unpinned) : t(R.string.pinned_toast));
 	}
 
 	private Row rowFor(String kind, JSONObject data) {
@@ -1759,11 +1808,11 @@ public class RemoteActivity extends Activity {
 
 	/** Playlists, with the pinned items (playlists, albums, artists, podcasts) first. */
 	private void openPlaylists() {
-		Screen s = new Screen("Playlists");
+		Screen s = new Screen(t(R.string.playlists));
 		JSONArray pins = loadPins();
 		Set<String> pinned = new HashSet<>();
 		if (pins.length() > 0) {
-			s.rows.add(header("Épinglés"));
+			s.rows.add(header(t(R.string.pinned)));
 			for (int i = 0; i < pins.length(); i++) {
 				JSONObject pin = pins.optJSONObject(i);
 				if (pin != null) {
@@ -1773,7 +1822,7 @@ public class RemoteActivity extends Activity {
 					pinned.add(r.data.optString("uri"));
 				}
 			}
-			s.rows.add(header("Toutes les playlists"));
+			s.rows.add(header(t(R.string.all_playlists)));
 		}
 		loadInto(s, "/me/playlists?limit=50", j -> {
 			Page p = parsePlaylists(j);
@@ -1824,7 +1873,7 @@ public class RemoteActivity extends Activity {
 				} else {
 					api.delete(q);
 				}
-				toast(add ? "Ajouté à la bibliothèque" : "Retiré de la bibliothèque");
+				toast(add ? t(R.string.library_added) : t(R.string.library_removed));
 				if (done != null) {
 					main.post(done);
 				}
@@ -1844,9 +1893,9 @@ public class RemoteActivity extends Activity {
 			List<String> labels = new ArrayList<>();
 			List<Runnable> actions = new ArrayList<>();
 			addSessionActions(labels, actions);
-			labels.add("Paramètres");
+			labels.add(t(R.string.settings));
 			actions.add(this::showSettings);
-			showChoices("Options", labels, actions);
+			showChoices(t(R.string.options), labels, actions);
 			return;
 		}
 		if (np) {
@@ -1858,7 +1907,7 @@ public class RemoteActivity extends Activity {
 							List<String> labels = new ArrayList<>();
 							List<Runnable> actions = new ArrayList<>();
 							addSessionActions(labels, actions);
-							showChoices("Options", labels, actions);
+							showChoices(t(R.string.options), labels, actions);
 						});
 						return;
 					}
@@ -1872,7 +1921,7 @@ public class RemoteActivity extends Activity {
 		}
 		Row r = selectedRow();
 		if (r == null || r.kind == null || r.data == null) {
-			toast("Pas d'options pour cette ligne");
+			toast(t(R.string.no_options_row));
 			return;
 		}
 		menuFor(r, false);
@@ -1880,7 +1929,7 @@ public class RemoteActivity extends Activity {
 
 	private void showChoices(String title, List<String> labels, List<Runnable> actions) {
 		if (labels.isEmpty()) {
-			toast("Aucune option (lance d'abord un titre)");
+			toast(t(R.string.no_options));
 			return;
 		}
 		new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
@@ -1905,55 +1954,55 @@ public class RemoteActivity extends Activity {
 			case "track":
 			case "episode": {
 				boolean episode = r.kind.equals("episode");
-				labels.add("Ajouter à la file d'attente");
+				labels.add(t(R.string.add_to_queue));
 				actions.add(() -> queueRow(r));
 				labels.add(episode
-					? (saved ? "Retirer de tes épisodes" : "Enregistrer l'épisode")
-					: (saved ? "Retirer des titres likés" : "Ajouter aux titres likés"));
+					? (saved ? t(R.string.episode_remove) : t(R.string.episode_save))
+					: (saved ? t(R.string.like_remove) : t(R.string.like_add)));
 				actions.add(() -> setInLibrary(uri, !saved, null));
 				JSONObject show = d.optJSONObject("show");
 				if (show != null) {
-					labels.add("Aller au podcast");
+					labels.add(t(R.string.go_podcast));
 					actions.add(() -> openShow(show.optString("name"), show.optString("id"), show.optString("uri")));
 				}
 				JSONArray artists = d.optJSONArray("artists");
 				JSONObject artist = artists != null ? artists.optJSONObject(0) : null;
 				if (artist != null) {
-					labels.add("Aller à l'artiste");
+					labels.add(t(R.string.go_artist));
 					actions.add(() -> openArtist(artist.optString("name"), artist.optString("id"), artist.optString("uri")));
 				}
 				JSONObject album = d.optJSONObject("album");
 				if (album != null) {
-					labels.add("Aller à l'album");
+					labels.add(t(R.string.go_album));
 					actions.add(() -> openAlbum(album.optString("name"), album.optString("id"), album.optString("uri")));
 				}
 				break;
 			}
 			default: {
-				labels.add("Lire");
+				labels.add(t(R.string.play));
 				actions.add(() -> playContext(uri, false));
 				if (!r.kind.equals("show")) {
-					labels.add("Lecture aléatoire");
+					labels.add(t(R.string.shuffle_play));
 					actions.add(() -> playContext(uri, true));
 				}
-				labels.add(isPinned(uri) ? "Désépingler" : "Épingler");
+				labels.add(isPinned(uri) ? t(R.string.unpin) : t(R.string.pin));
 				actions.add(() -> {
 					togglePin(r);
 					Screen s = current();
-					if (s != null && "Playlists".equals(s.title)) {
+					if (s != null && t(R.string.playlists).equals(s.title)) {
 						stack.remove(stack.size() - 1);
 						openPlaylists();
 					}
 				});
 				boolean follow = r.kind.equals("artist") || r.kind.equals("show");
 				labels.add(follow
-					? (saved ? "Ne plus suivre" : "Suivre")
-					: (saved ? "Retirer de la bibliothèque" : "Ajouter à la bibliothèque"));
+					? (saved ? t(R.string.unfollow) : t(R.string.follow))
+					: (saved ? t(R.string.library_remove) : t(R.string.library_add)));
 				actions.add(() -> setInLibrary(uri, !saved, null));
 				JSONArray artists = d.optJSONArray("artists");
 				JSONObject artist = artists != null ? artists.optJSONObject(0) : null;
 				if (r.kind.equals("album") && artist != null) {
-					labels.add("Aller à l'artiste");
+					labels.add(t(R.string.go_artist));
 					actions.add(() -> openArtist(artist.optString("name"), artist.optString("id"), artist.optString("uri")));
 				}
 				break;
@@ -1969,22 +2018,22 @@ public class RemoteActivity extends Activity {
 
 	private void showQueue() {
 		Screen cur = current();
-		if (cur != null && "File d'attente".equals(cur.title)) {
+		if (cur != null && t(R.string.queue_title).equals(cur.title)) {
 			return;
 		}
-		Screen s = new Screen("File d'attente");
+		Screen s = new Screen(t(R.string.queue_title));
 		loadInto(s, "/me/player/queue", json -> {
 			Page p = new Page();
 			JSONObject now = json.optJSONObject("currently_playing");
 			if (now != null) {
-				p.rows.add(header("En cours"));
+				p.rows.add(header(t(R.string.now_playing)));
 				Row r = trackRow(now);
 				r.action = this::showNowPlaying;
 				p.rows.add(r);
 			}
 			JSONArray queue = json.optJSONArray("queue");
 			if (queue != null && queue.length() > 0) {
-				p.rows.add(header("À suivre"));
+				p.rows.add(header(t(R.string.up_next)));
 				for (int i = 0; i < queue.length(); i++) {
 					JSONObject t = queue.optJSONObject(i);
 					if (t == null) {
@@ -1996,7 +2045,7 @@ public class RemoteActivity extends Activity {
 					p.rows.add(r);
 				}
 			} else {
-				p.rows.add(header("File d'attente vide"));
+				p.rows.add(header(t(R.string.queue_empty)));
 			}
 			return p;
 		});
@@ -2063,7 +2112,7 @@ public class RemoteActivity extends Activity {
 				}
 			}
 		}
-		toast("Action indisponible");
+		toast(t(R.string.action_unavailable));
 	}
 
 	private void volume(boolean up) {
@@ -2094,10 +2143,10 @@ public class RemoteActivity extends Activity {
 		boolean playing = isPlaying();
 
 		if (controller == null) {
-			nowBar.setText("Connexion au lecteur…");
+			nowBar.setText(t(R.string.connecting_player));
 			nowBar.setCompoundDrawables(null, null, null, null);
 		} else if (title == null) {
-			nowBar.setText("Rien en cours");
+			nowBar.setText(t(R.string.nothing_playing));
 			nowBar.setCompoundDrawables(null, null, null, null);
 		} else {
 			nowBar.setText(title + (artist != null ? " · " + artist : ""));
@@ -2106,7 +2155,7 @@ public class RemoteActivity extends Activity {
 
 		if (nowRow != null) {
 			nowRow.icon = playing ? R.drawable.ic_equalizer : R.drawable.ic_pause;
-			nowRow.label = title != null ? title : "En cours";
+			nowRow.label = title != null ? title : t(R.string.now_playing);
 			nowRow.sub = title != null ? artist : null;
 			Screen s = current();
 			if (s != null && s.home) {
@@ -2118,7 +2167,7 @@ public class RemoteActivity extends Activity {
 		if (s == null || !s.nowPlaying) {
 			return;
 		}
-		npTitle.setText(title != null ? title : controller == null ? "Connexion au lecteur…" : "Rien en cours");
+		npTitle.setText(title != null ? title : controller == null ? t(R.string.connecting_player) : t(R.string.nothing_playing));
 		npArtist.setText(artist != null ? artist : "");
 		npAlbum.setText(album != null ? album : "");
 		npPlay.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);

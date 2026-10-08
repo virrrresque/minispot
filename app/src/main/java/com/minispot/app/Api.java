@@ -37,8 +37,11 @@ class Api {
 	private static final String TOKEN_URL = "https://accounts.spotify.com/api/token";
 
 	private final SharedPreferences prefs;
+	/** For error messages, in the language chosen in MiniSpot. */
+	private final Context context;
 
 	Api(Context context) {
+		this.context = context;
 		prefs = context.getSharedPreferences("auth", Context.MODE_PRIVATE);
 	}
 
@@ -122,7 +125,7 @@ class Api {
 		String verifier = prefs.getString("verifier", null);
 		String expected = prefs.getString("state", null);
 		if (verifier == null || expected == null || !expected.equals(state)) {
-			throw new ApiException(400, "Connexion expirée, recommence");
+			throw new ApiException(400, context.getString(R.string.err_login_expired));
 		}
 		tokenRequest("grant_type=authorization_code"
 			+ "&code=" + enc(code)
@@ -139,7 +142,7 @@ class Api {
 	private void refresh() throws Exception {
 		String refresh = prefs.getString("refresh", null);
 		if (refresh == null) {
-			throw new ApiException(401, "Session expirée, reconnecte-toi");
+			throw new ApiException(401, context.getString(R.string.err_session_expired));
 		}
 		tokenRequest("grant_type=refresh_token"
 			+ "&refresh_token=" + enc(refresh)
@@ -161,10 +164,10 @@ class Api {
 		c.disconnect();
 		if ((status == 400 || status == 401) && body.startsWith("grant_type=refresh_token")) {
 			logout();
-			throw new ApiException(401, "Session expirée, reconnecte-toi");
+			throw new ApiException(401, context.getString(R.string.err_session_expired));
 		}
 		if (status >= 400) {
-			throw new ApiException(status, "Erreur " + status + " (connexion)");
+			throw new ApiException(status, context.getString(R.string.err_http_login, status));
 		}
 		JSONObject json = new JSONObject(text);
 		saveLogin(json.getString("access_token"), json.optString("refresh_token", null), json.optInt("expires_in", 3600));
@@ -227,9 +230,9 @@ class Api {
 				continue;
 			}
 			if (status >= 400) {
-				String msg = "Erreur " + status;
+				String msg = context.getString(R.string.err_http, status);
 				try {
-					msg += " : " + new JSONObject(text).getJSONObject("error").getString("message");
+					msg = context.getString(R.string.err_detail, msg, new JSONObject(text).getJSONObject("error").getString("message"));
 				} catch (Exception ignored) {
 				}
 				throw new ApiException(status, msg);

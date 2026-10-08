@@ -12,18 +12,18 @@ import android.content.Intent;
 public class TokenReceiver extends BroadcastReceiver {
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		String refresh = intent.getStringExtra("refresh");
-		if (refresh == null || refresh.isEmpty()) {
-			return;
-		}
 		String clientId = intent.getStringExtra("client_id");
 		if (!Api.isValidClientId(clientId)) {
 			return;
 		}
-		String access = intent.getStringExtra("access");
-		int expiresIn = intent.getIntExtra("expires", 0);
 		Api api = new Api(context);
 		api.setClientId(clientId);
+		String refresh = intent.getStringExtra("refresh");
+		if (refresh == null || refresh.isEmpty()) {
+			return; // Client ID only
+		}
+		String access = intent.getStringExtra("access");
+		int expiresIn = intent.getIntExtra("expires", 0);
 		api.saveLogin(access, refresh, access != null ? expiresIn : 0);
 		context.startActivity(new Intent(context, RemoteActivity.class)
 			.putExtra(RemoteActivity.EXTRA_LOGGED_IN, true)

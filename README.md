@@ -16,8 +16,8 @@ MiniSpot gives you a fast, minimal interface you can drive entirely with the D-p
 - **Menu** key: pin / unpin, add to / remove from library, follow, add to queue, go to artist / album / podcast, playback speed
 - **Queue** key: see what plays next and skip to it
 - Now playing screen with progress, shuffle and repeat
-- Home tabs can be **reordered and hidden** (Paramètres → Onglets de l'accueil)
-- Interface in **French** (translations welcome)
+- Home tabs can be **reordered and hidden** (Settings → Home tabs)
+- **10 languages**: English, Français, Deutsch, Español, Italiano, Português, Русский, 日本語, 中文, 한국어 (Paramètres / Settings → Language). Follows the phone's language by default. Translation fixes welcome: `app/src/main/res/values-*/strings.xml`
 - About 60 KB, black theme, no images: light on old phones with little RAM
 - On Kyocera phones, the grey soft key bar shows **Menu | OK | File**
 
@@ -69,7 +69,7 @@ python login-pc.py
 
 That's it: MiniSpot opens on the phone, logged in. The session renews itself; you only run the script again after logging out.
 
-> Why a computer? Old phone browsers (like Android 8.1's) cannot load Spotify's login page. On a phone with a recent browser you can instead set the Client ID in MiniSpot (Paramètres → Client ID Spotify) and use Paramètres → Se connecter à Spotify.
+> Why a computer? Old phone browsers (like Android 8.1's) cannot load Spotify's login page. On a phone with a recent browser you can instead set the Client ID in MiniSpot (Settings → Spotify Client ID) and use Settings → Log in to Spotify.
 
 ## Keys
 
@@ -140,6 +140,8 @@ MiniSpot est une petite télécommande Spotify pour téléphones à clapet et t�
 3. Téléphone branché, lance `python login-pc.py` (ou double-clique `login-pc.bat` sous Windows), colle ton Client ID, connecte-toi à Spotify dans le navigateur et accepte. MiniSpot s'ouvre connecté.
 
 Chacun utilise **sa propre** app Spotify et son propre compte : rien n'est partagé.
+
+**Langue :** Paramètres → Langue (10 langues, ou celle du téléphone).
 
 **Touches :** OK ouvre / lit (dans *En cours* : lecture / pause) · 5 lecture / pause · 1 / 3 titre précédent / suivant · 4 / 6 −15 s / +15 s · 2 / 8 volume · 7 aléatoire · 9 répéter · 0 écran *En cours* · ✱ j'aime · # file d'attente · touche gauche : Menu · touche droite : File d'attente.
 
