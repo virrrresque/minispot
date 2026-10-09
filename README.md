@@ -1,3 +1,6 @@
+
+
+
 # MiniSpot
 
 
@@ -9,16 +12,11 @@ You can use it entirely with the D-pad and number keys (no more annoying cursor)
 
 > Unofficial project. Not affiliated with, endorsed or sponsored by Spotify AB.
 
+
 <p align="center">
-  <img width="200" alt="home" src="https://github.com/user-attachments/assets/4501633d-a4b3-4a1e-be75-b5db6fb3d036" />
-  <img width="200" alt="search" src="https://github.com/user-attachments/assets/b8bf5f38-c865-4ba7-9dbd-01dec06303de" />
-  <img width="200" alt="playlists" src="https://github.com/user-attachments/assets/ff7ef22e-ccc4-49f5-8ce4-987870f129bd" />
+https://github.com/user-attachments/assets/d770a650-7d85-4af4-af70-2c21d63c2294
 </p>
-<p align="center">
-  <img width="200" alt="now playing" src="https://github.com/user-attachments/assets/e5cc4af4-aa52-415a-844f-be428ea08276" />
-  <img width="200" alt="menu" src="https://github.com/user-attachments/assets/791ae8f9-5340-4211-ae1a-779aa99fbbb9" />
-  <img width="200" alt="queue" src="https://github.com/user-attachments/assets/48b43099-6cb6-4173-b908-6020ce0d235c" />
-</p>
+
 
 
 ## Features
@@ -42,6 +40,21 @@ Without logging in, MiniSpot still works as a basic remote (play / pause, next, 
 - The official **Spotify** app installed on the phone and logged in, download the apk if playstore not available. It does the actual playback.
 - A computer (Windows, macOS or Linux) with **Python 3** and **adb** ([Tutorial here](https://www.youtube.com/watch?v=pCBWWRMbzto)).
 - USB debugging enabled on the phone (Settings → About phone → tap *Build number* 7 times, then Developer options → USB debugging).
+
+
+<p align="center">
+  <img width="200" alt="home" src="https://github.com/user-attachments/assets/4501633d-a4b3-4a1e-be75-b5db6fb3d036" />
+  <img width="200" alt="search" src="https://github.com/user-attachments/assets/b8bf5f38-c865-4ba7-9dbd-01dec06303de" />
+  <img width="200" alt="playlists" src="https://github.com/user-attachments/assets/ff7ef22e-ccc4-49f5-8ce4-987870f129bd" />
+</p>
+<p align="center">
+  <img width="200" alt="now playing" src="https://github.com/user-attachments/assets/e5cc4af4-aa52-415a-844f-be428ea08276" />
+  <img width="200" alt="menu" src="https://github.com/user-attachments/assets/791ae8f9-5340-4211-ae1a-779aa99fbbb9" />
+  <img width="200" alt="queue" src="https://github.com/user-attachments/assets/48b43099-6cb6-4173-b908-6020ce0d235c" />
+</p>
+
+
+
 
 ## Setup
 
