@@ -13,9 +13,9 @@ You can use it entirely with the D-pad and number keys (no more annoying cursor)
 > Unofficial project. Not affiliated with, endorsed or sponsored by Spotify AB.
 
 
-<p align="center">
+
 https://github.com/user-attachments/assets/d770a650-7d85-4af4-af70-2c21d63c2294
-</p>
+
 
 
 
