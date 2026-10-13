@@ -30,7 +30,8 @@ PACKAGE = "com.minispot.app"
 SCOPES = (
     "user-read-private playlist-read-private playlist-read-collaborative playlist-modify-public "
     "user-library-read user-library-modify user-follow-read user-follow-modify "
-    "user-read-recently-played user-read-playback-state user-modify-playback-state user-read-currently-playing"
+    "user-read-recently-played user-read-playback-state user-modify-playback-state user-read-currently-playing "
+    "user-read-playback-position"
 )
 
 
@@ -109,8 +110,8 @@ def main():
             else:
                 result["error"] = query.get("error", ["unknown"])[0]
             ok = "code" in result
-            msg = ("Connexion reussie, tu peux fermer cette page. / Logged in, you can close this page." if ok
-                   else "Connexion annulee / login cancelled: " + result["error"])
+            msg = ("Logged in, you can close this page." if ok
+                   else "Login cancelled: " + result["error"])
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()

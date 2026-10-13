@@ -167,7 +167,7 @@ MiniSpot est une version minimisée et optimisée de Spotify pour dumbphone or o
 
 **Installation :**
 
-1. Dans les [Releases](../../releases), télécharge `MiniSpot-x.y.z.apk`, `login-pc.py` et `login-pc.bat` (Windows), et mets-les dans le même dossier. Installe l'APK : `adb install MiniSpot-1.1.0.apk`
+1. Dans les [Releases](../../releases), télécharge `MiniSpot-x.y.z.apk`, `login-pc.py` et `login-pc.bat` (Windows), et mets-les dans le même dossier. Installe l'APK : `adb install MiniSpot-1.2.1.apk`
 2. Sur <https://developer.spotify.com/dashboard>, avec ton compte Premium : **Create app**, ajoute les Redirect URIs `http://127.0.0.1:8888/callback` et `minispot://callback`, coche **Web API**, enregistre, puis copie le **Client ID**.
 3. Téléphone branché, lance `python login-pc.py` (ou double-clique `login-pc.bat` sous Windows), colle ton Client ID, connecte-toi à Spotify dans le navigateur et accepte. MiniSpot s'ouvre connecté.
 

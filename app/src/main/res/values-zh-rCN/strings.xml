@@ -152,4 +152,5 @@
 	<string name="connecting_player">正在连接播放器…</string>
 	<string name="language">语言</string>
 	<string name="lang_system">手机语言</string>
+	<string name="minutes_listened">%1$d/%2$d 分钟</string>
 </resources>

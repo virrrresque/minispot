@@ -152,4 +152,5 @@
 	<string name="connecting_player">プレーヤーに接続中…</string>
 	<string name="language">言語</string>
 	<string name="lang_system">端末の言語</string>
+	<string name="minutes_listened">%1$d/%2$d分</string>
 </resources>

@@ -5,27 +5,37 @@ import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
+import android.icu.text.MeasureFormat;
+import android.icu.text.RelativeDateTimeFormatter;
+import android.icu.util.Measure;
+import android.icu.util.MeasureUnit;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
+import android.media.session.MediaSession;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.ImageSpan;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
 import android.util.TypedValue;
@@ -49,6 +59,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -56,6 +67,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -71,6 +84,7 @@ public class RemoteActivity extends Activity {
 	private static final String PREF_PLAYER = "player";
 	private static final String PREF_HOME_ORDER = "home_order";
 	private static final String PREF_PINS = "pins";
+	private static final String PREF_RECENTS = "recents";
 	private static final String PREF_HOME_HIDDEN = "home_hidden";
 	private static final String PREF_LANG = "lang";
 	/** Language tag and its own name; "" follows the phone. */
@@ -85,7 +99,8 @@ public class RemoteActivity extends Activity {
 	private static final String[] SCOPES = {
 		"user-read-private", "playlist-read-private", "playlist-read-collaborative", "playlist-modify-public",
 		"user-library-read", "user-library-modify", "user-follow-read", "user-follow-modify",
-		"user-read-recently-played", "user-read-playback-state", "user-modify-playback-state", "user-read-currently-playing"
+		"user-read-recently-played", "user-read-playback-state", "user-modify-playback-state", "user-read-currently-playing",
+		"user-read-playback-position"
 	};
 
 	private static final int GREEN = 0xFF1DB954;
@@ -103,7 +118,7 @@ public class RemoteActivity extends Activity {
 
 	private static class Row {
 		String label;
-		String sub;
+		CharSequence sub;
 		int icon;
 		boolean header;
 		Runnable action;
@@ -119,7 +134,7 @@ public class RemoteActivity extends Activity {
 		/** Drawn in grey: a home tab that is hidden. */
 		boolean dim;
 
-		Row(int icon, String label, String sub, Runnable action) {
+		Row(int icon, String label, CharSequence sub, Runnable action) {
 			this.icon = icon;
 			this.label = label;
 			this.sub = sub;
@@ -162,8 +177,11 @@ public class RemoteActivity extends Activity {
 	/** Play state shown right after OK, until the player confirms it (Spotify can take a second). */
 	private Boolean optimisticPlaying;
 	private long optimisticUntil;
+	/** Track shown right after a skip, until the player publishes the new one (null title: unknown, e.g. previous). */
+	private String skipTitle, skipArtist;
+	private long skipUntil;
 
-	private TextView nowBar, titleView, hintView, npTitle, npArtist, npAlbum, npTime;
+	private TextView nowBar, titleView, hintView, npTitle, npDate, npArtist, npAlbum, npTime;
 	private ImageView npPlay, npShuffle, npRepeat;
 	private EditText searchBox;
 	private ListView list;
@@ -189,6 +207,7 @@ public class RemoteActivity extends Activity {
 
 		@Override
 		public void onMetadataChanged(MediaMetadata metadata) {
+			skipUntil = 0;
 			updateNow();
 		}
 
@@ -224,6 +243,7 @@ public class RemoteActivity extends Activity {
 		audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 		api = new Api(this);
 		chosen = getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_PLAYER, "");
+		keepPlayerAlive();
 		setVolumeControlStream(AudioManager.STREAM_MUSIC);
 		buildViews();
 		softKeys = new SoftKeys(getWindow());
@@ -268,6 +288,9 @@ public class RemoteActivity extends Activity {
 	protected void onDestroy() {
 		super.onDestroy();
 		io.shutdownNow();
+		if (playerBound) {
+			unbindService(playerConnection);
+		}
 	}
 
 	// ---- media session (works without login) ----
@@ -350,6 +373,35 @@ public class RemoteActivity extends Activity {
 		} else {
 			audio.dispatchMediaKeyEvent(down);
 			audio.dispatchMediaKeyEvent(up);
+		}
+	}
+
+	private final ServiceConnection playerConnection = new ServiceConnection() {
+		@Override
+		public void onServiceConnected(ComponentName name, IBinder service) {
+			findSession();
+		}
+
+		@Override
+		public void onServiceDisconnected(ComponentName name) {
+		}
+	};
+	private boolean playerBound;
+
+	/**
+	 * Binds to the player's media service: this starts the player when MiniSpot opens, and Android
+	 * keeps a bound process as alive as the app bound to it, so the player is not killed while MiniSpot runs.
+	 */
+	private void keepPlayerAlive() {
+		if (playerBound) {
+			unbindService(playerConnection);
+		}
+		Intent service = new Intent("android.media.browse.MediaBrowserService").setPackage(player());
+		try {
+			playerBound = bindService(service, playerConnection, BIND_AUTO_CREATE | BIND_IMPORTANT);
+		} catch (SecurityException e) {
+			playerBound = false;
+			Log.w(TAG, "cannot bind " + player(), e);
 		}
 	}
 
@@ -470,6 +522,8 @@ public class RemoteActivity extends Activity {
 		npTitle.setTypeface(Typeface.DEFAULT_BOLD);
 		npTitle.setGravity(Gravity.CENTER);
 		npTitle.setMaxLines(3);
+		npDate = text(14, GRAY);
+		npDate.setGravity(Gravity.CENTER);
 		npArtist = text(17, GREEN);
 		npArtist.setGravity(Gravity.CENTER);
 		npArtist.setMaxLines(2);
@@ -481,6 +535,7 @@ public class RemoteActivity extends Activity {
 		npTime = text(14, GRAY);
 		npTime.setGravity(Gravity.CENTER);
 		npView.addView(npTitle);
+		npView.addView(npDate);
 		npView.addView(npArtist);
 		npView.addView(npAlbum);
 		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -546,36 +601,43 @@ public class RemoteActivity extends Activity {
 
 		@Override
 		public View getView(int position, View convertView, ViewGroup parent) {
-			TextView t = convertView instanceof TextView ? (TextView) convertView : text(17, Color.WHITE);
+			// title and subtitle in separate views: a long title must not push the subtitle (date, progress) out
+			LinearLayout box;
+			if (convertView instanceof LinearLayout) {
+				box = (LinearLayout) convertView;
+			} else {
+				box = new LinearLayout(RemoteActivity.this);
+				box.setOrientation(LinearLayout.VERTICAL);
+				box.addView(text(17, Color.WHITE));
+				box.addView(text(14, GRAY));
+			}
+			TextView t = (TextView) box.getChildAt(0);
+			TextView sub = (TextView) box.getChildAt(1);
 			Row r = rows.get(position);
 			t.setGravity(Gravity.CENTER_VERTICAL);
 			t.setMaxLines(2);
 			t.setEllipsize(TextUtils.TruncateAt.END);
 			t.setCompoundDrawablePadding(dp(12));
 			if (r.header) {
-				t.setPadding(dp(10), dp(10), dp(10), dp(3));
+				box.setPadding(dp(10), dp(10), dp(10), dp(3));
 				t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
 				t.setTextColor(GRAY);
 				t.setTypeface(Typeface.DEFAULT_BOLD);
 				t.setCompoundDrawables(null, null, null, null);
 				t.setText(r.label.toUpperCase(Locale.ROOT));
-				return t;
+				sub.setVisibility(View.GONE);
+				return box;
 			}
-			t.setPadding(dp(10), dp(8), dp(10), dp(8));
+			box.setPadding(dp(10), dp(8), dp(10), dp(8));
 			t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
 			t.setTextColor(r.highlight ? GREEN : r.dim ? DIM : Color.WHITE);
 			t.setTypeface(r.highlight ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
 			t.setCompoundDrawables(r.icon != 0 ? icon(r.icon, r.highlight ? GREEN : r.dim ? DIM : Color.WHITE, 22) : null, null, null, null);
-			if (r.sub == null || r.sub.isEmpty()) {
-				t.setText(r.label);
-			} else {
-				SpannableString s = new SpannableString(r.label + "\n" + r.sub);
-				int start = r.label.length() + 1;
-				s.setSpan(new ForegroundColorSpan(GRAY), start, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-				s.setSpan(new RelativeSizeSpan(0.8f), start, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-				t.setText(s);
-			}
-			return t;
+			t.setText(r.label);
+			sub.setVisibility(TextUtils.isEmpty(r.sub) ? View.GONE : View.VISIBLE);
+			sub.setPadding(r.icon != 0 ? dp(34) : 0, 0, 0, 0); // under the title text, past the icon
+			sub.setText(r.sub);
+			return box;
 		}
 	}
 
@@ -677,7 +739,7 @@ public class RemoteActivity extends Activity {
 				String key = order.get(i);
 				if (key.equals("recents")) {
 					s.rows.add(header(t(R.string.recent)));
-					loadInto(s, "/me/player/recently-played?limit=50", this::parseRecentShortcuts);
+					loadInto(s, "/me/player/recently-played?limit=50", this::parseRecentShortcuts, cachedRecents());
 					if (i < order.size() - 1) {
 						s.rows.add(header(t(R.string.library)));
 					}
@@ -821,6 +883,7 @@ public class RemoteActivity extends Activity {
 		if (api.isLoggedIn()) {
 			s.rows.add(new Row(R.drawable.ic_logout, t(R.string.logout), null, () -> {
 				api.logout();
+				getSharedPreferences("settings", MODE_PRIVATE).edit().remove(PREF_RECENTS).apply();
 				toast(t(R.string.logged_out));
 				showHome();
 			}));
@@ -907,6 +970,7 @@ public class RemoteActivity extends Activity {
 	private void choosePlayer(String pkg) {
 		chosen = pkg;
 		getSharedPreferences("settings", MODE_PRIVATE).edit().putString(PREF_PLAYER, pkg).apply();
+		keepPlayerAlive();
 		setController(null);
 		findSession();
 		toast(t(R.string.player_set, pkg.isEmpty() ? t(R.string.automatic) : appLabel(pkg)));
@@ -1164,8 +1228,15 @@ public class RemoteActivity extends Activity {
 	}
 
 	private void loadInto(Screen s, String url, Parser parser) {
-		Row placeholder = header(t(R.string.loading));
-		s.rows.add(placeholder);
+		loadInto(s, url, parser, new ArrayList<>());
+	}
+
+	/** shown: rows displayed until the page arrives (the last known ones), a loading line when empty. */
+	private void loadInto(Screen s, String url, Parser parser, List<Row> shown) {
+		if (shown.isEmpty()) {
+			shown.add(header(t(R.string.loading)));
+		}
+		s.rows.addAll(shown);
 		io.execute(() -> {
 			Page page = null;
 			String error = null;
@@ -1178,11 +1249,11 @@ public class RemoteActivity extends Activity {
 			Page result = page;
 			String err = error;
 			main.post(() -> {
-				int at = s.rows.indexOf(placeholder);
+				int at = s.rows.indexOf(shown.get(0));
 				if (at < 0) {
 					return;
 				}
-				s.rows.remove(at);
+				s.rows.removeAll(shown);
 				if (result != null) {
 					s.rows.addAll(at, result.rows);
 					if (result.next != null) {
@@ -1297,8 +1368,8 @@ public class RemoteActivity extends Activity {
 	}
 
 	private Row trackRow(JSONObject t) {
-		String sub = "episode".equals(t.optString("type"))
-			? duration(t.optLong("duration_ms"))
+		CharSequence sub = "episode".equals(t.optString("type"))
+			? episodeSub(t)
 			: artists(t) + " · " + duration(t.optLong("duration_ms"));
 		Row r = new Row("episode".equals(t.optString("type")) ? R.drawable.ic_podcast : R.drawable.ic_note, t.optString("name"), sub, null);
 		r.uri = t.optString("uri");
@@ -1475,19 +1546,40 @@ public class RemoteActivity extends Activity {
 						break;
 					case "track":
 					case "episode":
-						Row r = trackRow(e.getValue());
-						r.action = () -> playUris(r.uri);
-						p.rows.add(r);
+						p.rows.add(rowFor(type, e.getValue()));
 						break;
 				}
 			} catch (Exception ex) {
 				Log.w(TAG, "shortcut " + e.getKey(), ex);
 			}
 		}
+		JSONArray cache = new JSONArray();
+		for (Row r : p.rows) {
+			try {
+				cache.put(new JSONObject().put("kind", r.kind).put("data", r.data));
+			} catch (Exception ignored) {
+			}
+		}
+		getSharedPreferences("settings", MODE_PRIVATE).edit().putString(PREF_RECENTS, cache.toString()).apply();
 		if (p.rows.isEmpty()) {
 			p.rows.add(header(t(R.string.nothing_recent)));
 		}
 		return p;
+	}
+
+	/** The home shortcuts from the last load, shown while the fresh ones load. */
+	private List<Row> cachedRecents() {
+		List<Row> rows = new ArrayList<>();
+		try {
+			JSONArray cache = new JSONArray(getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_RECENTS, "[]"));
+			for (int i = 0; i < cache.length(); i++) {
+				JSONObject o = cache.getJSONObject(i);
+				rows.add(rowFor(o.getString("kind"), o.getJSONObject("data")));
+			}
+		} catch (Exception e) {
+			Log.w(TAG, "recents cache", e);
+		}
+		return rows;
 	}
 
 	private Page parseShows(JSONObject json) {
@@ -1517,6 +1609,98 @@ public class RemoteActivity extends Activity {
 		return p;
 	}
 
+	/** An icon centred on the text line, level with the bar (ImageSpan sits on the baseline, and ALIGN_CENTER needs Android 10). */
+	private static class CenteredImageSpan extends ImageSpan {
+		CenteredImageSpan(Drawable d) {
+			super(d);
+		}
+
+		@Override
+		public void draw(Canvas canvas, CharSequence text, int start, int end, float x, int top, int y, int bottom, Paint paint) {
+			Drawable d = getDrawable();
+			Paint.FontMetricsInt fm = paint.getFontMetricsInt();
+			canvas.save();
+			canvas.translate(x, y + (fm.ascent + fm.descent) / 2 - d.getBounds().height() / 2);
+			d.draw(canvas);
+			canvas.restore();
+		}
+	}
+
+	/** Release dates of the episodes listed so far, by title, for the now playing screen. */
+	private final Map<String, String> episodeDates = new ConcurrentHashMap<>();
+	private static final int BAR_LENGTH = 8;
+
+	/** Age and length, then a small bar: full with a check when played, with the minutes listened when started. */
+	private CharSequence episodeSub(JSONObject o) {
+		String date = o.optString("release_date");
+		if (!date.isEmpty()) {
+			episodeDates.put(o.optString("name"), date);
+		}
+		long dur = o.optLong("duration_ms");
+		String ago = ago(date);
+		SpannableStringBuilder b = new SpannableStringBuilder(ago != null ? ago + " · " + duration(dur) : duration(dur));
+		// resume_point needs the user-read-playback-position scope: absent for older logins
+		JSONObject resume = o.optJSONObject("resume_point");
+		long pos = resume != null ? resume.optLong("resume_position_ms") : 0;
+		boolean played = resume != null && resume.optBoolean("fully_played");
+		if (played || (pos > 0 && dur > 0)) {
+			int filled = played ? BAR_LENGTH : (int) Math.max(1, Math.min(BAR_LENGTH, pos * BAR_LENGTH / dur));
+			b.append('\n');
+			int start = b.length();
+			for (int i = 0; i < BAR_LENGTH; i++) {
+				b.append('━');
+			}
+			b.setSpan(new ForegroundColorSpan(GREEN), start, start + filled, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+			b.setSpan(new ForegroundColorSpan(DIM), start + filled, b.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+			b.setSpan(new RelativeSizeSpan(0.8f), start, b.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+			b.append("  ");
+			if (played) {
+				// the straight-lined check icon, not the font's curvy ✓
+				b.append(" ", new CenteredImageSpan(icon(R.drawable.ic_check, GREEN, 18)), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+			} else {
+				b.append(t(R.string.minutes_listened, pos / 60_000, (dur + 59_999) / 60_000));
+			}
+		}
+		return b;
+	}
+
+	/** Short age like "3d", "2w", "1m", "1y", in MiniSpot's language; null when the date cannot be read. */
+	private String ago(String releaseDate) {
+		long days = daysSince(releaseDate, System.currentTimeMillis());
+		if (days < 0) {
+			return null;
+		}
+		Locale locale = getResources().getConfiguration().getLocales().get(0);
+		if (days < 1) {
+			return RelativeDateTimeFormatter.getInstance(locale)
+				.format(RelativeDateTimeFormatter.Direction.THIS, RelativeDateTimeFormatter.AbsoluteUnit.DAY);
+		}
+		Measure age = days < 7 ? new Measure(days, MeasureUnit.DAY)
+			: days < 30 ? new Measure(days / 7, MeasureUnit.WEEK)
+			: days < 365 ? new Measure(days / 30, MeasureUnit.MONTH)
+			: new Measure(days / 365, MeasureUnit.YEAR);
+		return MeasureFormat.getInstance(locale, MeasureFormat.FormatWidth.NARROW).format(age);
+	}
+
+	/** Whole days from a release date ("2026-02-26", or "2026-02" / "2026" when less precise) to now, -1 if unreadable. */
+	static long daysSince(String releaseDate, long now) {
+		String[] p = releaseDate.split("-");
+		try {
+			Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+			c.clear();
+			c.set(Integer.parseInt(p[0]), p.length > 1 ? Integer.parseInt(p[1]) - 1 : 0, p.length > 2 ? Integer.parseInt(p[2]) : 1);
+			return Math.max(0, (now - c.getTimeInMillis()) / 86_400_000L);
+		} catch (NumberFormatException e) {
+			return -1;
+		}
+	}
+
+	/** "2026-02-26" as "26.02.26"; less precise dates stay as they are. */
+	static String shortDate(String releaseDate) {
+		String[] p = releaseDate.split("-");
+		return p.length == 3 && p[0].length() == 4 ? p[2] + "." + p[1] + "." + p[0].substring(2) : releaseDate;
+	}
+
 	private Page parseEpisodes(JSONObject json) {
 		Page p = new Page();
 		JSONArray items = json.optJSONArray("items");
@@ -1525,8 +1709,7 @@ public class RemoteActivity extends Activity {
 			if (o == null) {
 				continue;
 			}
-			Row r = new Row(R.drawable.ic_podcast, o.optString("name"),
-				o.optString("release_date") + " · " + duration(o.optLong("duration_ms")), null);
+			Row r = new Row(R.drawable.ic_podcast, o.optString("name"), episodeSub(o), null);
 			r.uri = o.optString("uri");
 			r.kind = "episode";
 			r.data = o;
@@ -1801,6 +1984,11 @@ public class RemoteActivity extends Activity {
 				return artistRow(data);
 			case "show":
 				return showRow(data);
+			case "track":
+			case "episode":
+				Row r = trackRow(data);
+				r.action = () -> playUris(r.uri);
+				return r;
 			default:
 				return playlistRow(data);
 		}
@@ -2089,6 +2277,47 @@ public class RemoteActivity extends Activity {
 		updateNow();
 	}
 
+	private void skip(boolean next) {
+		MediaController.TransportControls c = controls();
+		if (c == null) {
+			return;
+		}
+		if (next) {
+			c.skipToNext();
+		} else {
+			c.skipToPrevious();
+		}
+		// show the change at once: the player takes a moment to load the track
+		MediaSession.QueueItem item = next ? queueItemAfterCurrent() : null;
+		skipTitle = item != null ? str(item.getDescription().getTitle()) : null;
+		skipArtist = item != null ? str(item.getDescription().getSubtitle()) : null;
+		skipUntil = SystemClock.uptimeMillis() + 3000;
+		updateNow();
+	}
+
+	/** The queued track after the playing one, null when the player does not share its queue. */
+	private MediaSession.QueueItem queueItemAfterCurrent() {
+		PlaybackState st = controller.getPlaybackState();
+		List<MediaSession.QueueItem> queue = controller.getQueue();
+		if (st == null || queue == null) {
+			return null;
+		}
+		for (int i = 0; i < queue.size() - 1; i++) {
+			if (queue.get(i).getQueueId() == st.getActiveQueueItemId()) {
+				return queue.get(i + 1);
+			}
+		}
+		return null;
+	}
+
+	private static String str(CharSequence s) {
+		return s != null ? s.toString() : null;
+	}
+
+	private boolean skipping() {
+		return SystemClock.uptimeMillis() < skipUntil;
+	}
+
 	private void seek(long deltaMs) {
 		PlaybackState st = controller != null ? controller.getPlaybackState() : null;
 		MediaController.TransportControls c = controls();
@@ -2140,6 +2369,11 @@ public class RemoteActivity extends Activity {
 		String title = md != null ? md.getString(MediaMetadata.METADATA_KEY_TITLE) : null;
 		String artist = md != null ? md.getString(MediaMetadata.METADATA_KEY_ARTIST) : null;
 		String album = md != null ? md.getString(MediaMetadata.METADATA_KEY_ALBUM) : null;
+		if (skipping() && skipTitle != null) {
+			title = skipTitle;
+			artist = skipArtist;
+			album = null;
+		}
 		boolean playing = isPlaying();
 
 		if (controller == null) {
@@ -2168,6 +2402,9 @@ public class RemoteActivity extends Activity {
 			return;
 		}
 		npTitle.setText(title != null ? title : controller == null ? t(R.string.connecting_player) : t(R.string.nothing_playing));
+		String date = title != null ? episodeDates.get(title) : null;
+		npDate.setVisibility(date != null ? View.VISIBLE : View.GONE);
+		npDate.setText(date != null ? shortDate(date) : "");
 		npArtist.setText(artist != null ? artist : "");
 		npAlbum.setText(album != null ? album : "");
 		npPlay.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
@@ -2182,6 +2419,11 @@ public class RemoteActivity extends Activity {
 		}
 		PlaybackState st = controller.getPlaybackState();
 		MediaMetadata md = controller.getMetadata();
+		if (skipping()) {
+			npProgress.setProgress(0);
+			npTime.setText(duration(0));
+			return;
+		}
 		if (st == null || md == null) {
 			npProgress.setProgress(0);
 			npTime.setText("");
@@ -2207,16 +2449,15 @@ public class RemoteActivity extends Activity {
 			&& keyCode != KeyEvent.KEYCODE_2 && keyCode != KeyEvent.KEYCODE_8) {
 			return true;
 		}
-		MediaController.TransportControls c;
 		switch (keyCode) {
 			case KeyEvent.KEYCODE_5:
 				togglePlay();
 				return true;
 			case KeyEvent.KEYCODE_1:
-				if ((c = controls()) != null) c.skipToPrevious();
+				skip(false);
 				return true;
 			case KeyEvent.KEYCODE_3:
-				if ((c = controls()) != null) c.skipToNext();
+				skip(true);
 				return true;
 			case KeyEvent.KEYCODE_4:
 				seek(-15_000);
@@ -2289,10 +2530,10 @@ public class RemoteActivity extends Activity {
 					togglePlay();
 					return true;
 				case KeyEvent.KEYCODE_DPAD_LEFT:
-					if ((c = controls()) != null) c.skipToPrevious();
+					skip(false);
 					return true;
 				case KeyEvent.KEYCODE_DPAD_RIGHT:
-					if ((c = controls()) != null) c.skipToNext();
+					skip(true);
 					return true;
 				case KeyEvent.KEYCODE_DPAD_UP:
 					volume(true);

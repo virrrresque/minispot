@@ -152,4 +152,5 @@
 	<string name="connecting_player">Verbindung zum Player…</string>
 	<string name="language">Sprache</string>
 	<string name="lang_system">Sprache des Telefons</string>
+	<string name="minutes_listened">%1$d/%2$d Min.</string>
 </resources>

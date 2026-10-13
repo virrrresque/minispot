@@ -17,3 +17,6 @@ client_id.txt
 *.iml
 .vscode/
 .DS_Store
+
+# Files to upload to a GitHub release
+release/
