@@ -194,7 +194,10 @@ public class RemoteActivity extends Activity {
 		@Override
 		public void run() {
 			updateProgress();
-			main.postDelayed(this, 1000);
+			Screen s = current();
+			if (s != null && s.nowPlaying) {
+				main.postDelayed(this, 1000); // only the now playing screen has a moving bar
+			}
 		}
 	};
 
@@ -243,7 +246,6 @@ public class RemoteActivity extends Activity {
 		audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 		api = new Api(this);
 		chosen = getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_PLAYER, "");
-		keepPlayerAlive();
 		setVolumeControlStream(AudioManager.STREAM_MUSIC);
 		buildViews();
 		softKeys = new SoftKeys(getWindow());
@@ -272,6 +274,7 @@ public class RemoteActivity extends Activity {
 	@Override
 	protected void onStart() {
 		super.onStart();
+		keepPlayerAlive();
 		findSession();
 		main.post(ticker);
 	}
@@ -282,15 +285,17 @@ public class RemoteActivity extends Activity {
 		main.removeCallbacks(ticker);
 		stopListening();
 		setController(null);
+		// hidden: let Android manage the player again, a paused player kept alive drains the battery
+		if (playerBound) {
+			unbindService(playerConnection);
+			playerBound = false;
+		}
 	}
 
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
 		io.shutdownNow();
-		if (playerBound) {
-			unbindService(playerConnection);
-		}
 	}
 
 	// ---- media session (works without login) ----
@@ -389,8 +394,8 @@ public class RemoteActivity extends Activity {
 	private boolean playerBound;
 
 	/**
-	 * Binds to the player's media service: this starts the player when MiniSpot opens, and Android
-	 * keeps a bound process as alive as the app bound to it, so the player is not killed while MiniSpot runs.
+	 * Binds to the player's media service while MiniSpot is visible: this starts the player when MiniSpot opens,
+	 * and Android keeps a bound process as alive as the app bound to it, so the player is not killed meanwhile.
 	 */
 	private void keepPlayerAlive() {
 		if (playerBound) {
@@ -677,6 +682,8 @@ public class RemoteActivity extends Activity {
 			hintView.setText(api.isLoggedIn() ? R.string.hint_np_web : R.string.hint_np_free);
 			updateNow();
 			refreshPlayerOptions();
+			main.removeCallbacks(ticker);
+			main.post(ticker);
 			return;
 		}
 		npView.setVisibility(View.GONE);
