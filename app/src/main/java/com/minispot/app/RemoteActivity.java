@@ -246,6 +246,7 @@ public class RemoteActivity extends Activity {
 		audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 		api = new Api(this);
 		chosen = getSharedPreferences("settings", MODE_PRIVATE).getString(PREF_PLAYER, "");
+		keepPlayerAlive();
 		setVolumeControlStream(AudioManager.STREAM_MUSIC);
 		buildViews();
 		softKeys = new SoftKeys(getWindow());
@@ -274,7 +275,6 @@ public class RemoteActivity extends Activity {
 	@Override
 	protected void onStart() {
 		super.onStart();
-		keepPlayerAlive();
 		findSession();
 		main.post(ticker);
 	}
@@ -285,17 +285,16 @@ public class RemoteActivity extends Activity {
 		main.removeCallbacks(ticker);
 		stopListening();
 		setController(null);
-		// hidden: let Android manage the player again, a paused player kept alive drains the battery
-		if (playerBound) {
-			unbindService(playerConnection);
-			playerBound = false;
-		}
 	}
 
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
 		io.shutdownNow();
+		// stay bound while hidden too: an unbound Spotify drops off the Connect device list and Web API play calls fail
+		if (playerBound) {
+			unbindService(playerConnection);
+		}
 	}
 
 	// ---- media session (works without login) ----
@@ -381,6 +380,18 @@ public class RemoteActivity extends Activity {
 		}
 	}
 
+	/**
+	 * Wakes the player for a Web API call. A player started in the background stays offline (not in
+	 * Spotify Connect) until it plays, and its media session can play a Spotify URI without being online.
+	 */
+	private void wakePlayer(String uri) {
+		if (controller != null && uri != null) {
+			controller.getTransportControls().playFromUri(Uri.parse(uri), null);
+		} else {
+			wakePlayer();
+		}
+	}
+
 	private final ServiceConnection playerConnection = new ServiceConnection() {
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder service) {
@@ -394,8 +405,8 @@ public class RemoteActivity extends Activity {
 	private boolean playerBound;
 
 	/**
-	 * Binds to the player's media service while MiniSpot is visible: this starts the player when MiniSpot opens,
-	 * and Android keeps a bound process as alive as the app bound to it, so the player is not killed meanwhile.
+	 * Binds to the player's media service: this starts the player when MiniSpot opens, and Android
+	 * keeps a bound process as alive as the app bound to it, so the player is not killed while MiniSpot runs.
 	 */
 	private void keepPlayerAlive() {
 		if (playerBound) {
@@ -1188,6 +1199,7 @@ public class RemoteActivity extends Activity {
 
 	private void openShow(String name, String id, String uri) {
 		Screen s = new Screen(name);
+		s.contextUri = uri;
 		s.rows.add(new Row(R.drawable.ic_play, t(R.string.play), null, () -> playContext(uri, false)));
 		s.rows.add(libraryRow(uri, t(R.string.follow_podcast), t(R.string.unfollow_podcast)));
 		loadInto(s, "/shows/" + id + "/episodes?limit=50", this::parseEpisodes);
@@ -1735,17 +1747,24 @@ public class RemoteActivity extends Activity {
 
 	/** Runs a player call on the phone's Spotify device, waking Spotify first when it is not listed. */
 	private void onDevice(String done, ApiCall call) {
+		onDevice(done, null, call);
+	}
+
+	/** wakeUri: what to play through the media session when the player is offline, so it starts and joins Spotify Connect. */
+	private void onDevice(String done, String wakeUri, ApiCall call) {
 		io.execute(() -> {
 			try {
 				String device = findDevice();
 				if (device == null) {
-					main.post(this::wakePlayer);
-					for (int i = 0; i < 6 && device == null; i++) {
+					main.post(() -> wakePlayer(wakeUri));
+					// a player started cold takes up to ~15 s on this phone to join Spotify Connect
+					for (int i = 0; i < 12 && device == null; i++) {
 						Thread.sleep(1500);
 						device = findDevice();
 					}
 				}
 				if (device == null) {
+					Log.w(TAG, "player not in Spotify Connect after waking it");
 					toast(t(R.string.spotify_not_ready));
 					return;
 				}
@@ -1757,7 +1776,7 @@ public class RemoteActivity extends Activity {
 					}
 					// the device went away (Spotify was killed): wake it and retry once
 					api.setDeviceId(null);
-					main.post(this::wakePlayer);
+					main.post(() -> wakePlayer(wakeUri));
 					Thread.sleep(4000);
 					device = findDevice();
 					if (device == null) {
@@ -1808,7 +1827,7 @@ public class RemoteActivity extends Activity {
 	}
 
 	private void playContext(String contextUri, boolean shuffle) {
-		onDevice(null, device -> {
+		onDevice(null, contextUri, device -> {
 			api.put("/me/player/shuffle?state=" + shuffle + "&device_id=" + device, null);
 			api.put("/me/player/play?device_id=" + device, new JSONObject().put("context_uri", contextUri).toString());
 			shuffleOn = shuffle;
@@ -1816,20 +1835,23 @@ public class RemoteActivity extends Activity {
 		showNowPlaying();
 	}
 
-	private void playUris(String uri) {
-		onDevice(null, device -> api.put("/me/player/play?device_id=" + device,
-			new JSONObject().put("uris", new JSONArray().put(uri)).toString()));
-		showNowPlaying();
-	}
-
-	/** Plays a track row: inside its playlist/album when known, else as part of the screen's track list. */
+	/**
+	 * Plays a track row inside a context: the screen's playlist / album / podcast, else the track's own album
+	 * or show. The phone's Spotify accepts a plain "uris" list from the Web API but then plays nothing.
+	 */
 	private void playRow(Row r) {
 		Screen s = current();
 		JSONObject body = new JSONObject();
 		try {
+			JSONObject parent = r.data == null ? null
+				: r.data.has("album") ? r.data.optJSONObject("album") : r.data.optJSONObject("show");
+			String context = s.contextUri != null ? s.contextUri : parent != null ? parent.optString("uri", null) : null;
 			if (s.contextUri != null && r.index >= 0) {
 				body.put("context_uri", s.contextUri);
 				body.put("offset", new JSONObject().put("position", r.index));
+			} else if (context != null) {
+				body.put("context_uri", context);
+				body.put("offset", new JSONObject().put("uri", r.uri));
 			} else {
 				JSONArray uris = new JSONArray();
 				int pos = 0;
@@ -1846,7 +1868,7 @@ public class RemoteActivity extends Activity {
 			}
 		} catch (Exception ignored) {
 		}
-		onDevice(null, device -> api.put("/me/player/play?device_id=" + device, body.toString()));
+		onDevice(null, body.optString("context_uri", r.uri), device -> api.put("/me/player/play?device_id=" + device, body.toString()));
 		showNowPlaying();
 	}
 
@@ -1993,9 +2015,7 @@ public class RemoteActivity extends Activity {
 				return showRow(data);
 			case "track":
 			case "episode":
-				Row r = trackRow(data);
-				r.action = () -> playUris(r.uri);
-				return r;
+				return trackRow(data);
 			default:
 				return playlistRow(data);
 		}
